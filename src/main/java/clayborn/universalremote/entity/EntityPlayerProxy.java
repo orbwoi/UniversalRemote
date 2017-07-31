@@ -86,16 +86,14 @@ public class EntityPlayerProxy extends EntityPlayer {
 		
 		this.setPosition(posX, posY, posZ);
 		
+		this.inventory = realPlayer.inventory;
+		this.inventoryContainer = realPlayer.inventoryContainer;
+		
 		m_realPlayer = realPlayer;
 	}
 	
 	/* Modified Functions */	
 	
-	@Override
-	public float getDistanceToEntity(Entity entityIn) {
-		return super.getDistanceToEntity(entityIn);
-	}
-
 	@Override
 	public double getDistanceSq(double x, double y, double z) {
 		return super.getDistanceSq(x, y, z);
@@ -115,16 +113,29 @@ public class EntityPlayerProxy extends EntityPlayer {
 	public double getDistance(double x, double y, double z) {
 		return super.getDistance(x, y, z);
 	}
-
-	@Override
-	public double getDistanceSqToEntity(Entity entityIn) {
-		return super.getDistanceSqToEntity(entityIn);
-	}
 	
 	/* Proxy Functions */
 	
 	// NOTE: the if m_realPlayer == null in each function is to handle the case
 	// where the super constructor calls this member function during object construction
+	
+	@Override
+	public double getDistanceSqToEntity(Entity entityIn) {
+		if (m_realPlayer == null) {
+			return super.getDistanceSqToEntity(entityIn);
+		} else {
+			return m_realPlayer.getDistanceSqToEntity(entityIn);
+		}
+	}
+	
+	@Override
+	public float getDistanceToEntity(Entity entityIn) {
+		if (m_realPlayer == null) {
+			return super.getDistanceToEntity(entityIn);
+		} else {
+			return m_realPlayer.getDistanceToEntity(entityIn);
+		}
+	}
 	
 	@Override
 	public void onUpdate() {
