@@ -1,0 +1,23 @@
+{
+  "result": {
+    "item": "universalremote:item_universal_remote",
+    "data": 0
+  },
+  "pattern": [
+    "aba",
+    "bcb",
+    "aba"
+  ],
+  "type": "minecraft:crafting_shaped",
+  "key": {
+    "a": {
+		"item": "minecraft:obsidian"
+    },
+	"b": {
+		"item": "minecraft:ender_eye"
+	},
+	"c": {
+		"item": "minecraft:redstone_block"
+	}
+  }
+}

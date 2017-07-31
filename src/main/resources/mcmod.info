@@ -1,0 +1,16 @@
+[
+{
+  "modid": "universalremote",
+  "name": "Universal Remote",
+  "description": "Ever want a wireless... crafting grid? chest? any block in the game? Now you can! Use Universal Remote to access all the things from anywhere.",
+  "version": "${version}",
+  "mcversion": "${mcversion}",
+  "url": "https://github.com/orbwoi/UniversalRemote",
+  "updateUrl": "",
+  "authorList": ["Clayborn"],
+  "credits": "",
+  "logoFile": "assets/universalremote/textures/banner.png",
+  "screenshots": [],
+  "dependencies": []
+}
+]
