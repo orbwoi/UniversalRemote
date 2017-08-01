@@ -348,7 +348,7 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 							onBlockActivated(world, blockPosition, state, player, hand, facing, hitX, hitY, hitZ);
 						
 						// we opened a container, time to make a wrapper
-						if (player.openContainer != oldContainer)
+						if (player.openContainer != oldContainer && !player.openContainer.getClass().getName().startsWith("com.raoulvdberge.refinedstorage"))
 						{
 							player.openContainer = new ContainerProxy(player.openContainer, new EntityPlayerProxy(player, posX, posY, posZ));
 						}
@@ -369,7 +369,7 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 				}			
 	
 				
-			} else if (!worldIn.isRemote) {
+			} else {
 				
 				// if this happens the whole dimension isn't loaded!
 				
