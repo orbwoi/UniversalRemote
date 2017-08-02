@@ -37,9 +37,11 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 	
 	public static final int energyCapacity = 100000;
 	public static final int energyReceiveRate = 1000;
-	public static final int energyCostPerBlock = 1;
+	public static final int energyCostPerBlock = 10;
 	public static final int energyCostAcrossDims = 1000;
 	public static final int energyCostBindBlock = 100;
+	
+	public static final int nonVanillaBlockDistanceSq = 48 * 48;
 	
 	public ItemUniversalRemote()
 	{
@@ -141,6 +143,8 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 		            int[] blockPosition = {pos.getX(), pos.getY(), pos.getZ()};            
 		            tag.setIntArray("remote.blockposition", blockPosition);
 		            
+		            tag.setString("remote.block.name", worldIn.getBlockState(pos).getBlock().getClass().getName());
+		            
 		            tag.setString("remote.hand", hand.toString());            
 		            tag.setString("remote.facing", facing.toString());
 		            
@@ -190,6 +194,8 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 		if (!tag.hasKey("remote.dimension.id", m_intTagType.getId())) return false;
 		if (!tag.hasKey("remote.dimension.name", m_stringTagType.getId())) return false;
 		
+		if (!tag.hasKey("remote.block.name", m_stringTagType.getId())) return false;
+		
 		if (!tag.hasKey("remote.blockposition", m_intArrayTagType.getId())) return false;		
 		if (tag.getIntArray("remote.blockposition").length != 3) return false;
 		
@@ -208,7 +214,7 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 		
 	}
 
-	// just in case we need thi later...
+	// May be needed later...
 //	private void clearNBT(ItemStack stack) {
 //		
 //		if (!stack.hasTagCompound()) return;
@@ -217,6 +223,8 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 //		
 //		tag.removeTag("remote.dimension.id");
 //		tag.removeTag("remote.dimension.name");
+//
+//		tag.removeTag("remote.block.name");
 //		
 //		tag.removeTag("remote.blockposition");
 //		
@@ -299,6 +307,7 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 			// unpack NBT
 			int dim = tag.getInteger("remote.dimension.id");
 			int[] blockPositionArray = tag.getIntArray("remote.blockposition");
+			String blockName = tag.getString("remote.block.name");
 			BlockPos blockPosition = new BlockPos(blockPositionArray[0], blockPositionArray[1], blockPositionArray[2]);
 			EnumHand hand = EnumHand.valueOf(tag.getString("remote.hand"));
 			EnumFacing facing = EnumFacing.byName(tag.getString("remote.facing"));
@@ -316,7 +325,7 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 			if (player.dimension == dim) {	
 				
 				world = worldIn;
-				energyCost = Math.min(energyCostAcrossDims, (int)(player.getDistanceSq(blockPosition) * energyCostPerBlock));
+				energyCost = Math.min(energyCostAcrossDims, (int)(Math.sqrt(player.getDistanceSq(blockPosition)) * energyCostPerBlock));
 				
 			} else {
 				
@@ -332,31 +341,51 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 				if (world.getChunkFromBlockCoords(blockPosition).isLoaded())
 				{
 					
-		    		// Make sure we have enough energy
-		    		
-		    		ItemNBTEnergyStorage storage = (ItemNBTEnergyStorage) CapabilityHelper.tryGetCapability(stack, CapabilityEnergy.ENERGY, null);
-		    		
-		    		int amount = storage.limitlessExtractEnergy(energyCost, true);
-		    		if (amount >= energyCost) {
-		    			storage.limitlessExtractEnergy(energyCost, false);
-		    			
-						IBlockState state = world.getBlockState(blockPosition);				
+					IBlockState state = world.getBlockState(blockPosition);
+					
+					String test = state.getBlock().getClass().getName();
+										
+					if (test.equals(blockName)) {
 						
-						Container oldContainer = player.openContainer;
-						
-						state.getBlock().
-							onBlockActivated(world, blockPosition, state, player, hand, facing, hitX, hitY, hitZ);
-						
-						// we opened a container, time to make a wrapper
-						if (player.openContainer != oldContainer && !player.openContainer.getClass().getName().startsWith("com.raoulvdberge.refinedstorage"))
-						{
-							player.openContainer = new ContainerProxy(player.openContainer, new EntityPlayerProxy(player, posX, posY, posZ));
+						// Temporary fix for now
+						if (blockName.startsWith("net.minecraft") || (player.dimension == dim && player.getDistanceSq(blockPosition) <= nonVanillaBlockDistanceSq)) {
+					
+				    		// Make sure we have enough energy
+				    		
+				    		ItemNBTEnergyStorage storage = (ItemNBTEnergyStorage) CapabilityHelper.tryGetCapability(stack, CapabilityEnergy.ENERGY, null);
+				    		
+				    		int amount = storage.limitlessExtractEnergy(energyCost, true);
+				    		if (amount >= energyCost) {
+				    			storage.limitlessExtractEnergy(energyCost, false);
+								
+								Container oldContainer = player.openContainer;
+								
+								state.getBlock().
+									onBlockActivated(world, blockPosition, state, player, hand, facing, hitX, hitY, hitZ);
+								
+								// we opened a container, time to make a wrapper
+								if (player.openContainer != oldContainer && !player.openContainer.getClass().getName().startsWith("com.raoulvdberge.refinedstorage"))
+								{
+									player.openContainer = new ContainerProxy(player.openContainer, new EntityPlayerProxy(player, posX, posY, posZ));
+								}
+				    			
+				    		} else {
+				    			// uh ho not enough power!
+				    			player.sendMessage(TextFormatter.translateAndStyle("universalremote.strings.notenoughpower", TextFormatting.DARK_RED));
+				    		}
+			    		
+						} else {
+							
+							player.sendMessage(TextFormatter.translateAndStyle("universalremote.strings.modblocklimit", TextFormatting.DARK_RED));
+							
 						}
-		    			
-		    		} else {
-		    			// uh ho not enough power!
-		    			player.sendMessage(TextFormatter.translateAndStyle("universalremote.strings.notenoughpower", TextFormatting.DARK_RED));
-		    		}
+		    		
+					} else {
+						
+						// bad binding, unbind the remote
+						player.sendMessage(TextFormatter.translateAndStyle("universalremote.strings.blockchanged", TextFormatting.DARK_RED));
+						
+					}
 								
 				
 				} else {

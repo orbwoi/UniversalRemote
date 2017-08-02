@@ -8,3 +8,5 @@ universalremote.strings.instructionsTwo=Right-click in the air to activate bound
 itemGroup.universalremotetab=Universal Remote
 universalremote.strings.notenoughpower=Universal Remote does not have enough power!
 universalremote.strings.bound=Universal Remote bound to bound to block.
+universalremote.strings.blockchanged=Bound block has been replaced and need to be rebound.
+universalremote.strings.modblocklimit=Due to yet unfixed gamebreaking glitches, non-vanilla blocks are limited to a distance of 48 blocks.
