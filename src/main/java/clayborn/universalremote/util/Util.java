@@ -1,6 +1,7 @@
 package clayborn.universalremote.util;
 
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.inventory.EntityEquipmentSlot;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumHand;
 
@@ -39,6 +40,26 @@ public class Util {
 		}
 		
 		return stack;
+	}
+	
+	public static void setPlayerItemStackInHand(ItemStack stack, EntityPlayer player, EnumHand hand)
+	{
+		
+    	// okay, find the itemstack
+		if (hand == EnumHand.MAIN_HAND)
+		{
+			player.setItemStackToSlot(EntityEquipmentSlot.MAINHAND, stack);
+		} 
+		else if (hand == EnumHand.OFF_HAND)
+		{
+			player.setItemStackToSlot(EntityEquipmentSlot.OFFHAND, stack);
+		}
+		else
+		{
+			// uhh... what?
+			Util.logger.error("Found invalid EnumHand value!");
+		}
+		
 	}
 	
 }

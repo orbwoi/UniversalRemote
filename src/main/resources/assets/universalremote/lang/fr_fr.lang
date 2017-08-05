@@ -1,4 +1,5 @@
 item.universalremote.item_universal_remote.name=Télécommande universelle
+item.universalremote.item_universal_remote_bound.name=Télécommande universelle
 universalremote.strings.unbound=Pas lié
 universalremote.strings.notbounderror=La télécommande universelle ne peux pas se connecter à ce bloc!
 universalremote.strings.boundnotloaded=La télécommande universelle n'est pas chargée!
@@ -10,4 +11,4 @@ universalremote.strings.notenoughpower=La télécommande universelle n'est pas a
 universalremote.strings.bound=Télécommande universelle liée à un bloc.
 universalremote.strings.blockchanged=Le bloc a été remplacé ; il n'est plus accesible.
 universalremote.strings.powertooltip=%s/%s Energie
-universalremote.strings.vanillasinglecrossdimerror=Les blocs moddés marchent entre dimensions qu'en solo.
+universalremote.strings.crossdimerror=The bound block is in another dimension.

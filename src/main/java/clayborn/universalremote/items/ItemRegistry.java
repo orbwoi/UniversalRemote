@@ -10,7 +10,7 @@ public class ItemRegistry {
 		public ArrayList<ItemBase> All;
 		
 		// each item by name
-		public ItemUniversalRemote UniveralRemote;		
+		public ItemUniversalRemote UniveralRemote;
 		
 		// constructor
 		public ItemList()
@@ -18,7 +18,7 @@ public class ItemRegistry {
 			All = new ArrayList<>();
 			
 			// create the object instances!
-			All.add(UniveralRemote = new ItemUniversalRemote());
+			All.add(UniveralRemote = new ItemUniversalRemote("item_universal_remote", true));
 		}
 		
 	}

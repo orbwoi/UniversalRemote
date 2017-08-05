@@ -4,7 +4,6 @@ import java.util.List;
 
 import org.lwjgl.input.Keyboard;
 
-import clayborn.universalremote.UniversalRemote;
 import clayborn.universalremote.creative.UniversalRemoteTab;
 import clayborn.universalremote.entity.EntityPlayerProxy;
 import clayborn.universalremote.inventory.ContainerProxy;
@@ -12,6 +11,7 @@ import clayborn.universalremote.util.CapabilityHelper;
 import clayborn.universalremote.util.TextFormatter;
 import clayborn.universalremote.util.Util;
 import net.minecraft.block.state.IBlockState;
+import net.minecraft.client.renderer.block.model.ModelResourceLocation;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.entity.player.EntityPlayer;
@@ -34,6 +34,8 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.text.TextFormatting;
 import net.minecraft.world.World;
 import net.minecraft.world.chunk.Chunk;
+import net.minecraftforge.client.event.ModelRegistryEvent;
+import net.minecraftforge.client.model.ModelLoader;
 import net.minecraftforge.common.DimensionManager;
 import net.minecraftforge.energy.CapabilityEnergy;
 
@@ -42,16 +44,19 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 	public static final int energyCapacity = 100000;
 	public static final int energyReceiveRate = 1000;
 	public static final int energyCostPerBlock = 10;
-	public static final int energyCostAcrossDims = 1000;
+	public static final int energyCostMax = 1000;
 	public static final int energyCostBindBlock = 100;	
 	
 	// these guys work only without the wrapper proxies!
 	public static final String[] m_proxyExceptionsList = { "com.raoulvdberge.refinedstorage", "appeng" };
 	
-	public ItemUniversalRemote()
+	boolean m_publishSubTypes;
+	
+	public ItemUniversalRemote(String name, boolean publishSubTypes)
 	{
-		super(energyCapacity, energyReceiveRate, 0, "item_universal_remote", null);		
-		this.setHasSubtypes(true);
+		super(energyCapacity, energyReceiveRate, 0, name, null);
+		m_publishSubTypes = publishSubTypes;
+		if (m_publishSubTypes) this.setHasSubtypes(true);
 	}
 	
     /**
@@ -60,12 +65,24 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 	@Override
 	public void getSubItems(CreativeTabs tab, NonNullList<ItemStack> items) {
 		
-		if (tab == UniversalRemoteTab.INSTANCE)
+		if (m_publishSubTypes && tab == UniversalRemoteTab.INSTANCE)
 		{
 		
 			// no power version
 			{
-				ItemStack stack = new ItemStack(ItemRegistry.Items().UniveralRemote);			
+				ItemStack stack = new ItemStack(ItemRegistry.Items().UniveralRemote);
+				
+				NBTTagCompound tag = null;
+				
+		        if(!stack.hasTagCompound()){
+		        	tag = new NBTTagCompound();
+		        } else {
+		        	tag = stack.getTagCompound();
+		        }
+		        
+		        tag.setInteger("energy", 0);
+		        
+		        stack.setTagCompound(tag);
 		        
 		        items.add(stack);
 			}
@@ -93,7 +110,16 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 		
 	}
 	
-    /**
+    @Override
+	public void register(ModelRegistryEvent event) {
+
+		// register the models
+		ModelLoader.setCustomModelResourceLocation(this, 0, new ModelResourceLocation(this.getRegistryName(), "inventory"));
+		ModelLoader.setCustomModelResourceLocation(this, 1, new ModelResourceLocation(this.getRegistryName() + "_bound", "inventory"));
+
+	}
+
+	/**
      * Called when a Block is right-clicked with this Item
      */
 	@Override
@@ -114,9 +140,11 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 	    		ItemNBTEnergyStorage storage = (ItemNBTEnergyStorage) CapabilityHelper.tryGetCapability(stack, CapabilityEnergy.ENERGY, null);
 	    		
 	    		int amount = storage.limitlessExtractEnergy(energyCostBindBlock, true);
-	    		if (amount >= energyCostBindBlock) {
-	    			storage.limitlessExtractEnergy(energyCostBindBlock, false);
+	    		if (amount >= energyCostBindBlock)
+	    		{
 	    			
+	    			// extract the energy
+	    			storage.limitlessExtractEnergy(energyCostBindBlock, false);
 	    			
 	    			// Okay time to use NBT
 		    		
@@ -126,7 +154,7 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 		            	tag = new NBTTagCompound();
 		            } else {
 		            	tag = stack.getTagCompound();
-		            }
+		            }		            
 		                        
 		            // save dimension info
 		            tag.setInteger("remote.dimension.id", player.dimension);
@@ -164,7 +192,14 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 		            
 		            tag.setDouble("remote.player.position.X", player.posX);
 		            tag.setDouble("remote.player.position.Y", player.posY);
-		            tag.setDouble("remote.player.position.Z", player.posZ);
+		            tag.setDouble("remote.player.position.Z", player.posZ);		            
+		            
+		            // transform as needed
+		            if (stack.getUnlocalizedName().equals(ItemRegistry.Items().UniveralRemote.getUnlocalizedName()))
+		            {
+		            	stack = new ItemStack(ItemRegistry.Items().UniveralRemote, 1, 1);
+		            	Util.setPlayerItemStackInHand(stack, player, hand);
+		            }
 		            
 		            // save the data!
 		            stack.setTagCompound(tag);
@@ -253,6 +288,8 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 //		
 //	}
 
+	
+	
     @Override
 	public void addInformation(ItemStack stack, World playerIn, List<String> tooltip, ITooltipFlag advanced) {
     	
@@ -295,10 +332,10 @@ public class ItemUniversalRemote extends ItemEnergyBase {
     @Override
     public ActionResult<ItemStack> onItemRightClick(World worldIn, EntityPlayer player, EnumHand handIn)
     {
-    			
-    	ItemStack stack = Util.playerAndHandToItemStack(player, handIn);
-			
-	    if (!worldIn.isRemote) {	    		    
+    			    				
+	    if (!worldIn.isRemote) {
+	    	
+	    	ItemStack stack = Util.playerAndHandToItemStack(player, handIn);
     	    
 	    	// do we have bound block data?
 			if (!validateNBT(stack))
@@ -311,7 +348,15 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 				return super.onItemRightClick(worldIn, player, handIn);
 			}
 			
-			NBTTagCompound tag = stack.getTagCompound();					
+			NBTTagCompound tag = stack.getTagCompound();
+			
+            // transform as needed (this covers people who upgrade)
+            if (stack.getUnlocalizedName().equals(ItemRegistry.Items().UniveralRemote.getUnlocalizedName()))
+            {
+            	stack = new ItemStack(ItemRegistry.Items().UniveralRemote, 1, 1);
+            	stack.setTagCompound(tag);
+            	Util.setPlayerItemStackInHand(stack, player, handIn);
+            }
 			
 			// unpack NBT
 			int dim = tag.getInteger("remote.dimension.id");
@@ -336,16 +381,17 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 			if (player.dimension == dim) {	
 				
 				world = worldIn;
-				energyCost = Math.min(energyCostAcrossDims, (int)(Math.sqrt(player.getDistanceSq(blockPosition)) * energyCostPerBlock));
+				energyCost = Math.min(energyCostMax, (int)(Math.sqrt(player.getDistanceSq(blockPosition)) * energyCostPerBlock));
+
+// Cross-dim disabled for now
 				
-			} else {
-				
-				world = DimensionManager.getWorld(dim);	
-				energyCost = energyCostAcrossDims;
+//			} else {
+//				
+//				world = DimensionManager.getWorld(dim);	
+//				energyCost = energyCostAcrossDims;
 				
 			}
-			
-			
+						
 			// this should be null only if we are on the client AND in a different dimension 
 			if (world != null)
 			{
@@ -360,9 +406,9 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 					String test = state.getBlock().getClass().getName();
 					
 					// For now, only allow vanilla across dims on servers [cause it doesn't work :(]
-					if (test.startsWith("net.minecraft") || UniversalRemote.proxy.isSinglePlayer() || player.dimension == dim) {
+					if (test.startsWith("net.minecraft") || player.dimension == dim) {
 										
-						if (test.equals(blockName)) {				
+						if (test.equals(blockName)) {
 					
 				    		// Make sure we have enough energy
 				    		
@@ -373,8 +419,13 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 				    			
 				    			storage.limitlessExtractEnergy(energyCost, false);
 								
-				    			// force client to load chunk
-				    			((EntityPlayerMP) player).connection.sendPacket(new SPacketChunkData(chunk, 65535));
+				    			// force client to load chunk if in same world and using a modded block
+				    			if (!test.startsWith("net.minecraft") && player.dimension == dim)
+				    			{
+				    			
+				    				((EntityPlayerMP) player).connection.sendPacket(new SPacketChunkData(chunk, 65535));
+				    				
+				    			}
 				    			
 								Container oldContainer = player.openContainer;
 								
@@ -426,10 +477,8 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 				
 			} else {
 				
-				// if this happens the whole dimension isn't loaded!
-				
-				// let the player know the dimension isn't loaded
-				player.sendMessage(TextFormatter.translateAndStyle("universalremote.strings.boundnotloaded", TextFormatting.DARK_RED));
+				// let the player cross dimensional usage is disabled
+				player.sendMessage(TextFormatter.translateAndStyle("universalremote.strings.crossdimerror", TextFormatting.DARK_RED));
 				
 			}			 
     		
