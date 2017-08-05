@@ -11,25 +11,21 @@ public class ClientProxy implements ISidedProxy {
 
 	@Override
 	public void preInit(FMLPreInitializationEvent event) {
-		Util.logger.debug("client preInit starting...");
+		Util.logger.info("Starting client pre-initalization...");
 		
 		MinecraftForge.EVENT_BUS.register(new ClientRegistrar());
     	
-		Util.logger.debug("client preInit complete!");
+		Util.logger.info("Client pre-initalization complete!");
 	}
 
 	@Override
 	public void init(FMLInitializationEvent event) {
-		Util.logger.debug("client init starting...");
-    	
-		Util.logger.debug("client init complete!");
+
 	}
 
 	@Override
 	public void postInit(FMLPostInitializationEvent event) {
-		Util.logger.debug("client postInit starting...");
-		
-		Util.logger.debug("client postInit complete!");
+
 	}
 
 }

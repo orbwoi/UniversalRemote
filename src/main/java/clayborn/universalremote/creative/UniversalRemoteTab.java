@@ -6,13 +6,13 @@ import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 
-public class CreativeTab extends CreativeTabs {
+public class UniversalRemoteTab extends CreativeTabs {
 
-	public static final CreativeTab INSTANCE = new CreativeTab("universalremotetab");
+	public static final UniversalRemoteTab INSTANCE = new UniversalRemoteTab("universalremotetab");
 	
-	public CreativeTab(String label) {
+	public UniversalRemoteTab(String label) {
 		super(label);
-	}
+	}	
 
 	@Override
 	public ItemStack getTabIconItem() {

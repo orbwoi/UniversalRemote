@@ -25,7 +25,7 @@ public class ItemBase extends Item {
 	public void register(Register<Item> event)
 	{
 		// register the item
-		event.getRegistry().register(this);		
+		event.getRegistry().register(this);
 	}
 	
 	// default behavior 

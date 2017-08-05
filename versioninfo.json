@@ -1,0 +1,12 @@
+{
+  "homepage": "https://minecraft.curseforge.com/projects/universal-remote",
+  "1.12": {
+	"0.67": "TODO",
+    "0.66": "see https://minecraft.curseforge.com/projects/universal-remote/files/2459089",
+	"0.65": "see https://minecraft.curseforge.com/projects/universal-remote/files/2458703"
+  },
+  ...
+  "promos": {
+    "1.12-recommended": "0.67",
+  }
+}

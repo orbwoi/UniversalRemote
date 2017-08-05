@@ -4,7 +4,7 @@ import java.util.List;
 
 import org.lwjgl.input.Keyboard;
 
-import clayborn.universalremote.creative.CreativeTab;
+import clayborn.universalremote.creative.UniversalRemoteTab;
 import clayborn.universalremote.entity.EntityPlayerProxy;
 import clayborn.universalremote.inventory.ContainerProxy;
 import clayborn.universalremote.util.CapabilityHelper;
@@ -45,7 +45,7 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 	
 	public ItemUniversalRemote()
 	{
-		super(energyCapacity, energyReceiveRate, 0, "item_universal_remote", CreativeTab.INSTANCE);		
+		super(energyCapacity, energyReceiveRate, 0, "item_universal_remote", UniversalRemoteTab.INSTANCE);		
 		this.setHasSubtypes(true);		
 	}
 	
@@ -55,30 +55,35 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 	@Override
 	public void getSubItems(CreativeTabs tab, NonNullList<ItemStack> items) {
 		
-		// no power version
+		if (tab == UniversalRemoteTab.INSTANCE)
 		{
-			ItemStack stack = new ItemStack(ItemRegistry.Items().UniveralRemote);			
-	        
-	        items.add(stack);
-		}
 		
-		// fully powered version
-		{
-			ItemStack stack = new ItemStack(ItemRegistry.Items().UniveralRemote);
+			// no power version
+			{
+				ItemStack stack = new ItemStack(ItemRegistry.Items().UniveralRemote);			
+		        
+		        items.add(stack);
+			}
 			
-			NBTTagCompound tag = null;
+			// fully powered version
+			{
+				ItemStack stack = new ItemStack(ItemRegistry.Items().UniveralRemote);
+				
+				NBTTagCompound tag = null;
+				
+		        if(!stack.hasTagCompound()){
+		        	tag = new NBTTagCompound();
+		        } else {
+		        	tag = stack.getTagCompound();
+		        }
+		        
+		        tag.setInteger("energy", ItemUniversalRemote.energyCapacity);
+		        
+		        stack.setTagCompound(tag);
+		        
+		        items.add(stack);
+			}
 			
-	        if(!stack.hasTagCompound()){
-	        	tag = new NBTTagCompound();
-	        } else {
-	        	tag = stack.getTagCompound();
-	        }
-	        
-	        tag.setInteger("energy", ItemUniversalRemote.energyCapacity);
-	        
-	        stack.setTagCompound(tag);
-	        
-	        items.add(stack);
 		}
 		
 	}
