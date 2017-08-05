@@ -11,4 +11,4 @@ universalremote.strings.notenoughpower=无线访问器能量耗尽
 universalremote.strings.bound=无线访问器已绑定
 universalremote.strings.blockchanged=绑定的方块不在原位，请重新绑定
 universalremote.strings.powertooltip=%s/%s 能量剩余
-universalremote.strings.crossdimerror=The bound block is in another dimension.
+universalremote.strings.crossdimerror=绑定的方块在另一维度
