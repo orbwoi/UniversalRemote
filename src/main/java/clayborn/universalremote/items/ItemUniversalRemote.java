@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.lwjgl.input.Keyboard;
 
+import clayborn.universalremote.UniversalRemote;
 import clayborn.universalremote.creative.UniversalRemoteTab;
 import clayborn.universalremote.entity.EntityPlayerProxy;
 import clayborn.universalremote.inventory.ContainerProxy;
@@ -14,6 +15,7 @@ import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.inventory.Container;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -22,6 +24,7 @@ import net.minecraft.nbt.NBTTagFloat;
 import net.minecraft.nbt.NBTTagInt;
 import net.minecraft.nbt.NBTTagIntArray;
 import net.minecraft.nbt.NBTTagString;
+import net.minecraft.network.play.server.SPacketChunkData;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.EnumActionResult;
 import net.minecraft.util.EnumFacing;
@@ -30,6 +33,7 @@ import net.minecraft.util.NonNullList;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.text.TextFormatting;
 import net.minecraft.world.World;
+import net.minecraft.world.chunk.Chunk;
 import net.minecraftforge.common.DimensionManager;
 import net.minecraftforge.energy.CapabilityEnergy;
 
@@ -39,14 +43,15 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 	public static final int energyReceiveRate = 1000;
 	public static final int energyCostPerBlock = 10;
 	public static final int energyCostAcrossDims = 1000;
-	public static final int energyCostBindBlock = 100;
+	public static final int energyCostBindBlock = 100;	
 	
-	public static final int nonVanillaBlockDistanceSq = 48 * 48;
+	// these guys work only without the wrapper proxies!
+	public static final String[] m_proxyExceptionsList = { "com.raoulvdberge.refinedstorage", "appeng" };
 	
 	public ItemUniversalRemote()
 	{
-		super(energyCapacity, energyReceiveRate, 0, "item_universal_remote", UniversalRemoteTab.INSTANCE);		
-		this.setHasSubtypes(true);		
+		super(energyCapacity, energyReceiveRate, 0, "item_universal_remote", null);		
+		this.setHasSubtypes(true);
 	}
 	
     /**
@@ -264,9 +269,9 @@ public class ItemUniversalRemote extends ItemEnergyBase {
     		String dimName = tag.getString("remote.dimension.name");
     		int[] blockPosition = tag.getIntArray("remote.blockposition");
     		
-    		tip = TextFormatter.style(dimName + " (" + blockPosition[0] + ", " + blockPosition[1] + ", " + blockPosition[2] + ")", TextFormatting.GRAY).getFormattedText();
+    		tip = TextFormatter.style(TextFormatting.GRAY, dimName + " (" + blockPosition[0] + ", " + blockPosition[1] + ", " + blockPosition[2] + ")").getFormattedText();
     	} else {
-    		tip = TextFormatter.translateAndStyle("universalremote.strings.unbound", TextFormatting.DARK_RED, true).getFormattedText();
+    		tip = TextFormatter.translateAndStyle(TextFormatting.DARK_RED, true, "universalremote.strings.unbound").getFormattedText();
     	}
     	
     	tooltip.add(tip);
@@ -275,7 +280,7 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 		
 		if (!Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) && !Keyboard.isKeyDown(Keyboard.KEY_RSHIFT))
 		{
-			tooltip.add(TextFormatter.translateAndStyle("universalremote.strings.showmore", TextFormatting.DARK_GRAY, true).getFormattedText());
+			tooltip.add(TextFormatter.translateAndStyle(TextFormatting.DARK_GRAY, true, "universalremote.strings.showmore").getFormattedText());
 		}
 		else
 		{
@@ -290,12 +295,11 @@ public class ItemUniversalRemote extends ItemEnergyBase {
     @Override
     public ActionResult<ItemStack> onItemRightClick(World worldIn, EntityPlayer player, EnumHand handIn)
     {
-    	if (!worldIn.isRemote) {
-    	
-    		int energyCost = 0;
-    		
-	    	ItemStack stack = Util.playerAndHandToItemStack(player, handIn);
-	    	    
+    			
+    	ItemStack stack = Util.playerAndHandToItemStack(player, handIn);
+			
+	    if (!worldIn.isRemote) {	    		    
+    	    
 	    	// do we have bound block data?
 			if (!validateNBT(stack))
 			{
@@ -320,10 +324,12 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 			float hitX = tag.getFloat("remote.hit.X");
 			float hitY = tag.getFloat("remote.hit.Y");
 			float hitZ = tag.getFloat("remote.hit.Z");
-	
+
 			double posX = tag.getFloat("remote.player.position.X");
 			double posY = tag.getFloat("remote.player.position.Y");
 			double posZ = tag.getFloat("remote.player.position.Z");
+	    	
+			int energyCost = 0;
 			
 			World world = null;
 					
@@ -339,21 +345,24 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 				
 			}
 			
+			
 			// this should be null only if we are on the client AND in a different dimension 
 			if (world != null)
 			{
+				
+				Chunk chunk = world.getChunkFromBlockCoords(blockPosition);
 			
-				if (world.getChunkFromBlockCoords(blockPosition).isLoaded())
-				{
+				if (chunk.isLoaded())
+				{					
 					
 					IBlockState state = world.getBlockState(blockPosition);
 					
 					String test = state.getBlock().getClass().getName();
+					
+					// For now, only allow vanilla across dims on servers [cause it doesn't work :(]
+					if (test.startsWith("net.minecraft") || UniversalRemote.proxy.isSinglePlayer() || player.dimension == dim) {
 										
-					if (test.equals(blockName)) {
-						
-						// Temporary fix for now
-						if (blockName.startsWith("net.minecraft") || (player.dimension == dim && player.getDistanceSq(blockPosition) <= nonVanillaBlockDistanceSq)) {
+						if (test.equals(blockName)) {				
 					
 				    		// Make sure we have enough energy
 				    		
@@ -361,15 +370,26 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 				    		
 				    		int amount = storage.limitlessExtractEnergy(energyCost, true);
 				    		if (amount >= energyCost) {
+				    			
 				    			storage.limitlessExtractEnergy(energyCost, false);
 								
+				    			// force client to load chunk
+				    			((EntityPlayerMP) player).connection.sendPacket(new SPacketChunkData(chunk, 65535));
+				    			
 								Container oldContainer = player.openContainer;
+								
+								// make sure player.GetEntityWorld get's the TE's world
+								World oldWorld = player.world;
+								player.world = world;
 								
 								state.getBlock().
 									onBlockActivated(world, blockPosition, state, player, hand, facing, hitX, hitY, hitZ);
 								
-								// we opened a container, time to make a wrapper
-								if (player.openContainer != oldContainer && !player.openContainer.getClass().getName().startsWith("com.raoulvdberge.refinedstorage"))
+								// better put this back
+								player.world = oldWorld;
+								
+								// we opened a container, time to make a wrapper if needed
+								if (player.openContainer != oldContainer && !Util.doesStringStartWithAnyInArray(m_proxyExceptionsList, player.openContainer.getClass().getName()))
 								{
 									player.openContainer = new ContainerProxy(player.openContainer, new EntityPlayerProxy(player, posX, posY, posZ));
 								}
@@ -378,17 +398,18 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 				    			// uh ho not enough power!
 				    			player.sendMessage(TextFormatter.translateAndStyle("universalremote.strings.notenoughpower", TextFormatting.DARK_RED));
 				    		}
-			    		
+				    		
 						} else {
-							
-							player.sendMessage(TextFormatter.translateAndStyle("universalremote.strings.modblocklimit", TextFormatting.DARK_RED));
-							
-						}
-		    		
-					} else {
 						
 						// bad binding, unbind the remote
 						player.sendMessage(TextFormatter.translateAndStyle("universalremote.strings.blockchanged", TextFormatting.DARK_RED));
+						
+						}
+						
+					} else {
+						
+						// bad binding, unbind the remote
+						player.sendMessage(TextFormatter.translateAndStyle("universalremote.strings.vanillasinglecrossdimerror", TextFormatting.DARK_RED));
 						
 					}
 								
@@ -410,8 +431,8 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 				// let the player know the dimension isn't loaded
 				player.sendMessage(TextFormatter.translateAndStyle("universalremote.strings.boundnotloaded", TextFormatting.DARK_RED));
 				
-			}
-		
+			}			 
+    		
     	}
 		
 		

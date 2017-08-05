@@ -11,5 +11,8 @@ public interface ISidedProxy {
     void init(FMLInitializationEvent event);
 
     void postInit(FMLPostInitializationEvent event);
+    
+    // must be called from !world.isRemote() to work
+    boolean isSinglePlayer();
 	
 }

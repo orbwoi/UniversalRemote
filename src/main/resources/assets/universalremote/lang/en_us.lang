@@ -9,4 +9,5 @@ itemGroup.universalremotetab=Universal Remote
 universalremote.strings.notenoughpower=Universal Remote does not have enough power!
 universalremote.strings.bound=Universal Remote bound to bound to block.
 universalremote.strings.blockchanged=Bound block has been replaced and needs to be rebound.
-universalremote.strings.modblocklimit=Due to yet unfixed gamebreaking glitches, non-vanilla blocks are limited to a distance of 48 blocks.
+universalremote.strings.powertooltip=%s/%s Power
+universalremote.strings.vanillasinglecrossdimerror=Modded blocks only work across dimensions in singleplayer for now.

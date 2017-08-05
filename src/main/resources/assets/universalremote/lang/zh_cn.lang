@@ -9,4 +9,5 @@ itemGroup.universalremotetab=无线访问器
 universalremote.strings.notenoughpower=无线访问器能量耗尽
 universalremote.strings.bound=无线访问器已绑定
 universalremote.strings.blockchanged=绑定的方块不在原位，请重新绑定
-universalremote.strings.modblocklimit=由于未修复的问题，非原版方块只能在48格范围内访问
+universalremote.strings.powertooltip=%s/%s Power
+universalremote.strings.vanillasinglecrossdimerror=Modded blocks only work across dimensions in singleplayer for now.

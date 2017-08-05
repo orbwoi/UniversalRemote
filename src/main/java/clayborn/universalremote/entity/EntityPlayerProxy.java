@@ -3139,15 +3139,6 @@ public class EntityPlayerProxy extends EntityPlayer {
 	}
 
 	@Override
-	public World getEntityWorld() {
-		if (m_realPlayer == null) {
-			return super.getEntityWorld();
-		} else {
-			return m_realPlayer.getEntityWorld();
-		}
-	}
-
-	@Override
 	public Entity getCommandSenderEntity() {
 		if (m_realPlayer == null) {
 			return super.getCommandSenderEntity();

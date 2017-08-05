@@ -27,5 +27,10 @@ public class ClientProxy implements ISidedProxy {
 	public void postInit(FMLPostInitializationEvent event) {
 
 	}
+	
+	public boolean isSinglePlayer()
+	{
+		return true;
+	}
 
 }

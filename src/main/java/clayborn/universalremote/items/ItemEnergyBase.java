@@ -3,15 +3,15 @@ package clayborn.universalremote.items;
 import java.text.NumberFormat;
 import java.util.List;
 
-import com.mojang.realmsclient.gui.ChatFormatting;
-
 import clayborn.universalremote.util.CapabilityHelper;
+import clayborn.universalremote.util.TextFormatter;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.text.TextFormatting;
 import net.minecraft.world.World;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.capabilities.ICapabilityProvider;
@@ -84,7 +84,9 @@ public class ItemEnergyBase extends ItemBase {
         if(storage != null){
         	// Thank to Ellpeck's Actually Addition for this formating code!
             NumberFormat format = NumberFormat.getInstance();
-            tooltip.add(String.format(ChatFormatting.DARK_GREEN + "%s/%s Power", format.format(storage.getEnergyStored()), format.format(storage.getMaxEnergyStored())));
+            tooltip.add(TextFormatter.translateAndStyle(TextFormatting.DARK_GREEN, "universalremote.strings.powertooltip",
+            		format.format(storage.getEnergyStored()), 
+            		format.format(storage.getMaxEnergyStored())).getFormattedText());
         }
     }
 

@@ -8,6 +8,17 @@ public class Util {
 	
 	public static org.apache.logging.log4j.Logger logger;
 	
+	public static boolean doesStringStartWithAnyInArray(String[] prefixList, String compare)
+	{
+
+		for(String s : prefixList)
+		{
+			if (compare.startsWith(s)) return true;
+		}
+		
+		return false;
+	}
+	
 	public static ItemStack playerAndHandToItemStack(EntityPlayer player, EnumHand hand)
 	{
 		ItemStack stack = null;
