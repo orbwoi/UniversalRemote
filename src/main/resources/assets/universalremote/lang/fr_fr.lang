@@ -1,5 +1,4 @@
 item.universalremote.item_universal_remote.name=Télécommande universelle
-item.universalremote.item_universal_remote_bound.name=Télécommande universelle
 universalremote.strings.unbound=Pas lié
 universalremote.strings.notbounderror=La télécommande universelle ne peux pas se connecter à ce bloc!
 universalremote.strings.boundnotloaded=La télécommande universelle n'est pas chargée!
@@ -12,3 +11,6 @@ universalremote.strings.bound=Télécommande universelle liée à un bloc.
 universalremote.strings.blockchanged=Le bloc a été remplacé ; il n'est plus accesible.
 universalremote.strings.powertooltip=%s/%s Energie
 universalremote.strings.crossdimerror=The bound block is in another dimension.
+universalremote.version.update_available=Version %s is now available
+universalremote.version.download=Download
+universalremote.version.click_to_download=Click to download

@@ -392,7 +392,7 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 				
 			}
 						
-			// this should be null only if we are on the client AND in a different dimension 
+			// this should be null only if the target dimension is not loaded
 			if (world != null)
 			{
 				
@@ -405,8 +405,10 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 					
 					String test = state.getBlock().getClass().getName();
 					
-					// For now, only allow vanilla across dims on servers [cause it doesn't work :(]
-					if (test.startsWith("net.minecraft") || player.dimension == dim) {
+					// For now, block access across dimensions...
+					// it maybe confusing to have vanilla blocks work but not modded ones
+					// so all blocks are disabled.
+					if (player.dimension == dim) {
 										
 						if (test.equals(blockName)) {
 					
