@@ -9,6 +9,7 @@ import java.util.UUID;
 
 import com.mojang.authlib.GameProfile;
 
+import clayborn.universalremote.util.InjectionHandler;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.EnumPushReaction;
 import net.minecraft.block.material.Material;
@@ -82,12 +83,14 @@ public class EntityPlayerProxy extends EntityPlayer {
 	
 	public EntityPlayerProxy(EntityPlayer realPlayer, double posX, double posY, double posZ)
 	{
-		super(realPlayer.world, realPlayer.getGameProfile());
+		super(realPlayer.world, realPlayer.getGameProfile());		
+		
+//		this.inventory = realPlayer.inventory;
+//		this.inventoryContainer = realPlayer.inventoryContainer;
+		
+		InjectionHandler.copyAllFieldsFrom(this, realPlayer, EntityPlayer.class);
 		
 		this.setPosition(posX, posY, posZ);
-		
-		this.inventory = realPlayer.inventory;
-		this.inventoryContainer = realPlayer.inventoryContainer;
 		
 		m_realPlayer = realPlayer;
 	}

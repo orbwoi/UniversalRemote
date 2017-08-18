@@ -1,7 +1,9 @@
 package clayborn.universalremote.proxy;
 
+import clayborn.universalremote.network.VanillaPacketInterceptorInjector;
 import clayborn.universalremote.registrar.ClientRegistrar;
 import clayborn.universalremote.util.Util;
+import clayborn.universalremote.world.RemoteGuiEnabledClientWorldEventSync;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
@@ -14,6 +16,8 @@ public class ClientProxy implements ISidedProxy {
 		Util.logger.info("Starting client pre-initalization...");
 		
 		MinecraftForge.EVENT_BUS.register(new ClientRegistrar());
+    	MinecraftForge.EVENT_BUS.register(new VanillaPacketInterceptorInjector());
+    	MinecraftForge.EVENT_BUS.register(new RemoteGuiEnabledClientWorldEventSync());
     	
 		Util.logger.info("Client pre-initalization complete!");
 	}

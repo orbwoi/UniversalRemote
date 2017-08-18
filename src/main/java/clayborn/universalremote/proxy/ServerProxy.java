@@ -8,7 +8,7 @@ public class ServerProxy implements ISidedProxy {
 
 	@Override
 	public void preInit(FMLPreInitializationEvent event) {
-
+		
 	}
 
 	@Override

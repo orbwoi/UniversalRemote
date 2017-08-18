@@ -7,7 +7,7 @@ import net.minecraft.util.EnumHand;
 
 public class Util {
 	
-	public static org.apache.logging.log4j.Logger logger;
+	public static Logger logger;
 	
 	public static boolean doesStringStartWithAnyInArray(String[] prefixList, String compare)
 	{
@@ -61,5 +61,5 @@ public class Util {
 		}
 		
 	}
-	
+
 }

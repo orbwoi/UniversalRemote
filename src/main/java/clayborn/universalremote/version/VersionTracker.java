@@ -8,7 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.commons.io.IOUtils;
-import org.apache.logging.log4j.Logger;
+import clayborn.universalremote.util.Logger;
 
 import com.google.gson.Gson;
 

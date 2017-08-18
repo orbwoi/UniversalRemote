@@ -7,15 +7,16 @@ import org.lwjgl.input.Keyboard;
 import clayborn.universalremote.creative.UniversalRemoteTab;
 import clayborn.universalremote.entity.EntityPlayerProxy;
 import clayborn.universalremote.inventory.ContainerProxy;
+import clayborn.universalremote.network.OpenGuiFilterServer;
 import clayborn.universalremote.util.CapabilityHelper;
 import clayborn.universalremote.util.TextFormatter;
 import clayborn.universalremote.util.Util;
+import clayborn.universalremote.world.PlayerWorldSyncServer;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.renderer.block.model.ModelResourceLocation;
 import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.inventory.Container;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -24,7 +25,6 @@ import net.minecraft.nbt.NBTTagFloat;
 import net.minecraft.nbt.NBTTagInt;
 import net.minecraft.nbt.NBTTagIntArray;
 import net.minecraft.nbt.NBTTagString;
-import net.minecraft.network.play.server.SPacketChunkData;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.EnumActionResult;
 import net.minecraft.util.EnumFacing;
@@ -48,7 +48,7 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 	public static final int energyCostBindBlock = 100;	
 	
 	// these guys work only without the wrapper proxies!
-	public static final String[] m_proxyExceptionsList = { "com.raoulvdberge.refinedstorage", "appeng" };
+	public static final String[] m_proxyExceptionsList = { "com.raoulvdberge.refinedstorage", "appeng" };	
 	
 	boolean m_publishSubTypes;
 	
@@ -195,7 +195,7 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 		            tag.setDouble("remote.player.position.Z", player.posZ);		            
 		            
 		            // transform as needed
-		            if (stack.getUnlocalizedName().equals(ItemRegistry.Items().UniveralRemote.getUnlocalizedName()))
+		            if (stack.getMetadata() != 1)
 		            {
 		            	stack = new ItemStack(ItemRegistry.Items().UniveralRemote, 1, 1);
 		            	Util.setPlayerItemStackInHand(stack, player, hand);
@@ -203,6 +203,9 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 		            
 		            // save the data!
 		            stack.setTagCompound(tag);
+		            
+		            // clear the player's remote gui if they used it on a block that didn't actually have a GUI
+	    			OpenGuiFilterServer.INSTANCE.clearPlayerData(player);
 		            
 		            player.sendMessage(TextFormatter.translateAndStyle("universalremote.strings.bound", TextFormatting.DARK_GREEN));
 	    			
@@ -325,7 +328,7 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 			tooltip.add(TextFormatter.translateAndStyle("universalremote.strings.instructionsTwo", TextFormatting.GRAY).getFormattedText());
 		}
 	}
-
+    
 	/**
      * Called when the equipped item is right clicked.
      */
@@ -351,7 +354,7 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 			NBTTagCompound tag = stack.getTagCompound();
 			
             // transform as needed (this covers people who upgrade)
-            if (stack.getUnlocalizedName().equals(ItemRegistry.Items().UniveralRemote.getUnlocalizedName()))
+            if (stack.getMetadata() != 1)
             {
             	stack = new ItemStack(ItemRegistry.Items().UniveralRemote, 1, 1);
             	stack.setTagCompound(tag);
@@ -382,13 +385,11 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 				
 				world = worldIn;
 				energyCost = Math.min(energyCostMax, (int)(Math.sqrt(player.getDistanceSq(blockPosition)) * energyCostPerBlock));
-
-// Cross-dim disabled for now
 				
-//			} else {
-//				
-//				world = DimensionManager.getWorld(dim);	
-//				energyCost = energyCostAcrossDims;
+			} else {
+				
+				world = DimensionManager.getWorld(dim);	
+				energyCost = energyCostMax;
 				
 			}
 						
@@ -404,69 +405,80 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 					IBlockState state = world.getBlockState(blockPosition);
 					
 					String test = state.getBlock().getClass().getName();
-					
-					// For now, block access across dimensions...
-					// it maybe confusing to have vanilla blocks work but not modded ones
-					// so all blocks are disabled.
-					if (player.dimension == dim) {
 										
-						if (test.equals(blockName)) {
-					
-				    		// Make sure we have enough energy
-				    		
-				    		ItemNBTEnergyStorage storage = (ItemNBTEnergyStorage) CapabilityHelper.tryGetCapability(stack, CapabilityEnergy.ENERGY, null);
-				    		
-				    		int amount = storage.limitlessExtractEnergy(energyCost, true);
-				    		if (amount >= energyCost) {
-				    			
-				    			storage.limitlessExtractEnergy(energyCost, false);
+					if (test.equals(blockName)) {
+				
+			    		// Make sure we have enough energy
+			    		
+			    		ItemNBTEnergyStorage storage = (ItemNBTEnergyStorage) CapabilityHelper.tryGetCapability(stack, CapabilityEnergy.ENERGY, null);
+			    		
+			    		int amount = storage.limitlessExtractEnergy(energyCost, true);
+			    		if (amount >= energyCost) {
+			    			
+			    			storage.limitlessExtractEnergy(energyCost, false);
+							
+			    			// setup extra field need to setup client for remote modded gui activation!
+			    			if (!test.startsWith("net.minecraft"))
+			    			{
+			    				// prepare for remote activation!
+			    				OpenGuiFilterServer.INSTANCE.setPlayerData(world, player, blockPosition);
+			    				
+			    			}
+			    			
+							Container oldContainer = player.openContainer;
+							
+							// make sure player.GetEntityWorld get's the TE's world
+							World oldWorld = player.world;
+							player.world = world;
+							
+							state.getBlock().
+								onBlockActivated(world, blockPosition, state, player, hand, facing, hitX, hitY, hitZ);
+							
+							// did we get re-routed to another block?
+							// then we need to try again!
+							while (OpenGuiFilterServer.INSTANCE.wasRerouted(player))
+							{
+								// note: count of tries kept in OpenGuiFilterServer
+								OpenGuiFilterServer.INSTANCE.ReissueRequest(player);
+							}							
+														
+							// we opened a container, time to make a wrapper if needed
+							if (player.openContainer != oldContainer)
+							{
 								
-				    			// force client to load chunk if in same world and using a modded block
-				    			if (!test.startsWith("net.minecraft") && player.dimension == dim)
-				    			{
-				    			
-				    				((EntityPlayerMP) player).connection.sendPacket(new SPacketChunkData(chunk, 65535));
-				    				
-				    			}
-				    			
-								Container oldContainer = player.openContainer;
-								
-								// make sure player.GetEntityWorld get's the TE's world
-								World oldWorld = player.world;
-								player.world = world;
-								
-								state.getBlock().
-									onBlockActivated(world, blockPosition, state, player, hand, facing, hitX, hitY, hitZ);
-								
-								// better put this back
-								player.world = oldWorld;
-								
-								// we opened a container, time to make a wrapper if needed
-								if (player.openContainer != oldContainer && !Util.doesStringStartWithAnyInArray(m_proxyExceptionsList, player.openContainer.getClass().getName()))
+								if (!Util.doesStringStartWithAnyInArray(m_proxyExceptionsList, player.openContainer.getClass().getName()))
 								{
 									player.openContainer = new ContainerProxy(player.openContainer, new EntityPlayerProxy(player, posX, posY, posZ));
 								}
-				    			
-				    		} else {
-				    			// uh ho not enough power!
-				    			player.sendMessage(TextFormatter.translateAndStyle("universalremote.strings.notenoughpower", TextFormatting.DARK_RED));
-				    		}
-				    		
-						} else {
-						
-						// bad binding, unbind the remote
-						player.sendMessage(TextFormatter.translateAndStyle("universalremote.strings.blockchanged", TextFormatting.DARK_RED));
-						
-						}
-						
-					} else {
-						
-						// bad binding, unbind the remote
-						player.sendMessage(TextFormatter.translateAndStyle("universalremote.strings.vanillasinglecrossdimerror", TextFormatting.DARK_RED));
-						
-					}
 								
-				
+								if (oldWorld != world)
+								{
+									PlayerWorldSyncServer.INSTANCE.setPlayerData(player, player.openContainer,
+											oldWorld.provider.getDimension(), world.provider.getDimension());
+								}
+								
+							} else {
+								
+								// it didn't open anything, clear the player data
+				    			OpenGuiFilterServer.INSTANCE.clearPlayerData(player);
+								
+								// put the world back even if it didn't open a container!
+								player.world = oldWorld;
+								
+							}
+			    			
+			    		} else {
+			    			// uh ho not enough power!
+			    			player.sendMessage(TextFormatter.translateAndStyle("universalremote.strings.notenoughpower", TextFormatting.DARK_RED));
+			    		}
+			    		
+					} else {
+					
+					// bad binding, unbind the remote
+					player.sendMessage(TextFormatter.translateAndStyle("universalremote.strings.blockchanged", TextFormatting.DARK_RED));
+					
+					}
+												
 				} else {
 					// chunk isn't loaded!
 					
@@ -479,8 +491,8 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 				
 			} else {
 				
-				// let the player cross dimensional usage is disabled
-				player.sendMessage(TextFormatter.translateAndStyle("universalremote.strings.crossdimerror", TextFormatting.DARK_RED));
+				// let the player know the chunk (or dimension in this case) isn't loaded
+				player.sendMessage(TextFormatter.translateAndStyle("universalremote.strings.boundnotloaded", TextFormatting.DARK_RED));
 				
 			}			 
     		

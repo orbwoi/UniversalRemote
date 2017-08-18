@@ -2,6 +2,8 @@ package clayborn.universalremote.inventory;
 
 import java.util.List;
 
+import clayborn.universalremote.util.InjectionHandler;
+import clayborn.universalremote.world.PlayerWorldSyncServer;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.inventory.ClickType;
@@ -22,11 +24,14 @@ public class ContainerProxy extends Container {
 		super();
 		
 		m_realContainer = realContainer;
-		m_playerProxy = playerProxy;		
+		m_playerProxy = playerProxy;
 		
-	    this.inventoryItemStacks = realContainer.inventoryItemStacks;
-	    this.inventorySlots = realContainer.inventorySlots;
-		this.windowId = realContainer.windowId;
+//	    this.inventoryItemStacks = realContainer.inventoryItemStacks;
+//	    this.inventorySlots = realContainer.inventorySlots;
+//		this.windowId = realContainer.windowId;
+		
+		InjectionHandler.copyAllFieldsFrom(this, realContainer, Container.class);
+	
 	}
 
 	/* Modified Functions */
@@ -49,6 +54,20 @@ public class ContainerProxy extends Container {
 			return super.getCanCraft(player);
 		} else {
 			return m_realContainer.getCanCraft(m_playerProxy);
+		}
+	}
+
+	@Override
+	public void onContainerClosed(EntityPlayer playerIn) {
+		if (m_realContainer == null) {
+			super.onContainerClosed(playerIn);
+		} else {
+			
+			// call the sync event!
+			PlayerWorldSyncServer.INSTANCE.onWindowClose(playerIn);
+			
+			// trigger default event
+			m_realContainer.onContainerClosed(playerIn);
 		}
 	}
 	
@@ -141,15 +160,6 @@ public class ContainerProxy extends Container {
 			return super.canMergeSlot(stack, slotIn);
 		} else {
 			return m_realContainer.canMergeSlot(stack, slotIn);
-		}
-	}
-
-	@Override
-	public void onContainerClosed(EntityPlayer playerIn) {
-		if (m_realContainer == null) {
-			super.onContainerClosed(playerIn);
-		} else {
-			m_realContainer.onContainerClosed(playerIn);
 		}
 	}
 

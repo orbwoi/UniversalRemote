@@ -1,8 +1,7 @@
 package clayborn.universalremote.version;
 
-import org.apache.logging.log4j.Logger;
-
 import clayborn.universalremote.settings.Strings;
+import clayborn.universalremote.util.Logger;
 import clayborn.universalremote.util.TextFormatter;
 import clayborn.universalremote.util.Util;
 
@@ -25,6 +24,13 @@ public class UniversalRemoteVersionProvider implements VersionTracker.IVersionPr
 
 	@Override
 	public String getVersion() {
+		// TODO: improve this parsing
+		String[] versions = Strings.VERSION.split("-");
+		if (versions.length > 1)
+		{
+			return versions[1];
+		}
+		
 		return Strings.VERSION;
 	}
 
