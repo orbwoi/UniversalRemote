@@ -66,25 +66,7 @@ public class PlayerWorldSyncServer {
 			
 			m_validContainers.remove(player);
 		}
-		
-		
-//		// only on the server
-//		if (!event.player.world.isRemote)
-//		{
-//			// only if it isn't the real world
-//			if (event.player.world instanceof WorldServerProxy)
-//			{
-//				WorldServerProxy proxy = (WorldServerProxy)event.player.world;
-//				
-//				// if it isn't a proxy OR the original container, clean up...
-//				if (proxy.getContainer() != event.player.openContainer)
-//				{
-//				
-//					event.player.world = DimensionManager.getWorld(event.player.world.provider.getDimension());
-//					
-//				}
-//			}
-//		}
+
 	}
 	
 }
