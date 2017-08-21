@@ -18,12 +18,12 @@ import net.minecraft.world.WorldSettings;
 public class RespawnInterceptor extends SimpleChannelInboundHandler<SPacketRespawn> {
 
 	private NetworkManager m_manager;
-	
+
 	public RespawnInterceptor(NetworkManager manager)
 	{
 		m_manager = manager;
-	}	
-	
+	}
+
 	@Override
 	protected void channelRead0(ChannelHandlerContext ctx, SPacketRespawn msg) throws Exception {
         if (ctx.channel().isOpen())
@@ -32,16 +32,17 @@ public class RespawnInterceptor extends SimpleChannelInboundHandler<SPacketRespa
             {
 
             	try {
-            	
+
 	    	    	NetHandlerPlayClient handler = (NetHandlerPlayClient) m_manager.getNetHandler();
-	    	    	
+
     	    		Minecraft scheduler = InjectionHandler.readFieldOfType(handler, Minecraft.class);
-	            	
+
 	                if (!scheduler.isCallingFromMinecraftThread())
 	                {
 	                    scheduler.addScheduledTask(new Runnable()
 	                    {
-	                        public void run()
+	                        @Override
+							public void run()
 	                        {
 	                            invoke(msg);
 	                        }
@@ -49,19 +50,19 @@ public class RespawnInterceptor extends SimpleChannelInboundHandler<SPacketRespa
 	                    throw ThreadQuickExitException.INSTANCE;
 	                } else {
 	                	invoke(msg);
-	                }      
-                
+	                }
+
     	    	} catch (Exception e) {
-    	    		
+
     	    		if (e instanceof ThreadQuickExitException) throw e;
-    	    		
+
     	    		Util.logger.logException("Unable to get scheduler!", e);
-    	    		
+
     	    		// we died - let vanilla take over!
     	    		ctx.fireChannelRead(msg);
     	    		return;
     	    	}
-                
+
             }
             catch (ThreadQuickExitException var4)
             {
@@ -69,31 +70,31 @@ public class RespawnInterceptor extends SimpleChannelInboundHandler<SPacketRespa
             }
         }
 	}
-	
+
 	public void invoke(SPacketRespawn packetIn)
     {
 		try {
-			
+
 	    	NetHandlerPlayClient handler = (NetHandlerPlayClient) m_manager.getNetHandler();
-	    	
-	    	Minecraft gameController = InjectionHandler.readFieldOfType(handler, Minecraft.class);   
+
+	    	Minecraft gameController = InjectionHandler.readFieldOfType(handler, Minecraft.class);
 
 	        if (packetIn.getDimensionID() != gameController.player.dimension)
 	        {
 	        	// this also writes "hasStatistics" but it doesn't seem to be used anywhere
-	        	InjectionHandler.writeAllFieldsOfType(handler, true, boolean.class);
-	        	
+	        	InjectionHandler.writeAllFieldsOfType(handler, false, boolean.class);
+
 	        	// clientWorldController Old
 	        	WorldClient clientWorldController = InjectionHandler.readFieldOfType(handler, WorldClient.class);
-	        	
-	            Scoreboard scoreboard = clientWorldController.getScoreboard();	            
-	            
+
+	            Scoreboard scoreboard = clientWorldController.getScoreboard();
+
 	            // clientWorldController New
-	            clientWorldController = 
+	            clientWorldController =
 	            		new RemoteGuiEnabledClientWorld(handler, new WorldSettings(0L, packetIn.getGameType(), false, gameController.world.getWorldInfo().isHardcoreModeEnabled(), packetIn.getWorldType()), packetIn.getDimensionID(), packetIn.getDifficulty(), gameController.mcProfiler);
-	            
+
 	            InjectionHandler.writeFieldOfType(handler, clientWorldController, WorldClient.class);
-	            	            
+
 	            // other settings
 	            clientWorldController.setWorldScoreboard(scoreboard);
 	            gameController.loadWorld(clientWorldController);
@@ -105,13 +106,13 @@ public class RespawnInterceptor extends SimpleChannelInboundHandler<SPacketRespa
 	        gameController.setDimensionAndSpawnPlayer(packetIn.getDimensionID());
 	        gameController.playerController.setGameType(packetIn.getGameType());
 
-        
+
 		} catch (IllegalAccessException e) {
-			
+
 			Util.logger.logException("Unable to process SPacketJoinGame!", e);
-			
+
 		}
-		
+
     }
 
 }

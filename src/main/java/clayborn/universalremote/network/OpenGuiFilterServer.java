@@ -161,6 +161,8 @@ public class OpenGuiFilterServer extends ChannelOutboundHandlerAdapter {
 
             }
 
+        } catch (Throwable t) {
+        	Util.logger.logException("OpenGUI filter died", t);
         } finally { }
 
     }
