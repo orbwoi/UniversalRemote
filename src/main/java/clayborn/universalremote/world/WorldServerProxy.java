@@ -159,6 +159,17 @@ public class WorldServerProxy extends WorldServer {
 	}
 
 	@Override
+	public void markTileEntitiesInChunkForRemoval(Chunk chunk) {
+		if (m_proxyWorld != null && isPrefixInCallStack()) {
+			m_proxyWorld.markTileEntitiesInChunkForRemoval(chunk);
+		} else if (m_realWorld != null) {
+			m_realWorld.markTileEntitiesInChunkForRemoval(chunk);
+		} else {
+			super.markTileEntitiesInChunkForRemoval(chunk);
+		}
+	}
+
+	@Override
 	public SpawnListEntry getSpawnListEntryForTypeAt(EnumCreatureType creatureType, BlockPos pos) {
 		if (m_proxyWorld != null && isPrefixInCallStack()) {
 			return m_proxyWorld.getSpawnListEntryForTypeAt(creatureType, pos);

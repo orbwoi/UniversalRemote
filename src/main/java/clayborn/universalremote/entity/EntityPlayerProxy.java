@@ -80,23 +80,23 @@ import net.minecraftforge.common.capabilities.Capability;
 public class EntityPlayerProxy extends EntityPlayer {
 
 	private EntityPlayer m_realPlayer;
-	
+
 	public EntityPlayerProxy(EntityPlayer realPlayer, double posX, double posY, double posZ)
 	{
-		super(realPlayer.world, realPlayer.getGameProfile());		
-		
+		super(realPlayer.world, realPlayer.getGameProfile());
+
 //		this.inventory = realPlayer.inventory;
 //		this.inventoryContainer = realPlayer.inventoryContainer;
-		
+
 		InjectionHandler.copyAllFieldsFrom(this, realPlayer, EntityPlayer.class);
-		
+
 		this.setPosition(posX, posY, posZ);
-		
+
 		m_realPlayer = realPlayer;
 	}
-	
-	/* Modified Functions */	
-	
+
+	/* Modified Functions */
+
 	@Override
 	public double getDistanceSq(double x, double y, double z) {
 		return super.getDistanceSq(x, y, z);
@@ -116,12 +116,21 @@ public class EntityPlayerProxy extends EntityPlayer {
 	public double getDistance(double x, double y, double z) {
 		return super.getDistance(x, y, z);
 	}
-	
+
 	/* Proxy Functions */
-	
+
 	// NOTE: the if m_realPlayer == null in each function is to handle the case
 	// where the super constructor calls this member function during object construction
-	
+
+	@Override
+	public World getEntityWorld() {
+		if (m_realPlayer == null) {
+			return super.getEntityWorld();
+		} else {
+			return m_realPlayer.getEntityWorld();
+		}
+	}
+
 	@Override
 	public double getDistanceSqToEntity(Entity entityIn) {
 		if (m_realPlayer == null) {
@@ -130,7 +139,7 @@ public class EntityPlayerProxy extends EntityPlayer {
 			return m_realPlayer.getDistanceSqToEntity(entityIn);
 		}
 	}
-	
+
 	@Override
 	public float getDistanceToEntity(Entity entityIn) {
 		if (m_realPlayer == null) {
@@ -139,7 +148,7 @@ public class EntityPlayerProxy extends EntityPlayer {
 			return m_realPlayer.getDistanceToEntity(entityIn);
 		}
 	}
-	
+
 	@Override
 	public void onUpdate() {
 		if (m_realPlayer == null) {
@@ -3455,6 +3464,6 @@ public class EntityPlayerProxy extends EntityPlayer {
 			return m_realPlayer.getPushReaction();
 		}
 	}
-	
-	
+
+
 }

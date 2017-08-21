@@ -15,30 +15,30 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.util.NonNullList;
 
 public class ContainerProxy extends Container {
-	
+
 	Container m_realContainer;
 	EntityPlayer m_playerProxy;
-	
+
 	public ContainerProxy(Container realContainer, EntityPlayer playerProxy)
 	{
 		super();
-		
+
 		m_realContainer = realContainer;
 		m_playerProxy = playerProxy;
-		
+
 //	    this.inventoryItemStacks = realContainer.inventoryItemStacks;
 //	    this.inventorySlots = realContainer.inventorySlots;
 //		this.windowId = realContainer.windowId;
-		
+
 		InjectionHandler.copyAllFieldsFrom(this, realContainer, Container.class);
-	
+
 	}
 
 	/* Modified Functions */
-	
+
 	// NOTE: the if m_realContainer == null in each function is to handle the case
 	// where the super constructor calls this member function during object construction
-	
+
 	@Override
 	public boolean canInteractWith(EntityPlayer playerIn) {
 		if (m_realContainer == null) {
@@ -47,7 +47,7 @@ public class ContainerProxy extends Container {
 			return m_realContainer.canInteractWith(m_playerProxy);
 		}
 	}
-	
+
 	@Override
 	public boolean getCanCraft(EntityPlayer player) {
 		if (m_realContainer == null) {
@@ -62,15 +62,15 @@ public class ContainerProxy extends Container {
 		if (m_realContainer == null) {
 			super.onContainerClosed(playerIn);
 		} else {
-			
+
 			// call the sync event!
 			PlayerWorldSyncServer.INSTANCE.onWindowClose(playerIn);
-			
+
 			// trigger default event
 			m_realContainer.onContainerClosed(playerIn);
 		}
 	}
-	
+
 	/* Proxy Functions */
 
 	@Override
@@ -181,14 +181,14 @@ public class ContainerProxy extends Container {
 		}
 	}
 
-	@Override
-	public void addItem(int slotIn, ItemStack stack) {
-		if (m_realContainer == null) {
-			super.addItem(slotIn, stack);
-		} else {
-			m_realContainer.addItem(slotIn, stack);
-		}
-	}
+//	@Override
+//	public void addItem(int slotIn, ItemStack stack) {
+//		if (m_realContainer == null) {
+//			super.addItem(slotIn, stack);
+//		} else {
+//			m_realContainer.addItem(slotIn, stack);
+//		}
+//	}
 
 	@Override
 	public void setAll(List<ItemStack> p_190896_1_) {
