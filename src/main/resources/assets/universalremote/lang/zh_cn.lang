@@ -14,3 +14,5 @@ universalremote.strings.crossdimerror=绑定的方块在另一维度
 universalremote.version.update_available=有可用的更新
 universalremote.version.download=下载
 universalremote.version.click_to_download=点击以下载
+universalremote.strings.configtitle=Universal Remote Configuration
+universalremote.strings.blockblacklist=The target block is blacklisted.

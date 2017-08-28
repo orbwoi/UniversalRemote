@@ -17,7 +17,7 @@ public class RemoteGuiEnabledClientWorldEventSync {
 		if (event.getGui() == null)
 		{
 			// a gui has been closed -- reset remote gui
-			
+
 			if (Minecraft.getMinecraft().world instanceof RemoteGuiEnabledClientWorld)
 			{
 				((RemoteGuiEnabledClientWorld)Minecraft.getMinecraft().world).ClearRemoteGui();
@@ -28,5 +28,5 @@ public class RemoteGuiEnabledClientWorldEventSync {
 			}
 		}
 	}
-	
+
 }

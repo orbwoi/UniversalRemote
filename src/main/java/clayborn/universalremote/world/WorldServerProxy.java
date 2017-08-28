@@ -14,6 +14,7 @@ import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.util.concurrent.ListenableFuture;
 
 import clayborn.universalremote.util.InjectionHandler;
+import clayborn.universalremote.util.Util;
 import net.minecraft.advancements.AdvancementManager;
 import net.minecraft.advancements.FunctionManager;
 import net.minecraft.block.Block;
@@ -53,6 +54,7 @@ import net.minecraft.world.MinecraftException;
 import net.minecraft.world.NextTickListEntry;
 import net.minecraft.world.Teleporter;
 import net.minecraft.world.World;
+import net.minecraft.world.WorldProvider;
 import net.minecraft.world.WorldServer;
 import net.minecraft.world.WorldSettings;
 import net.minecraft.world.WorldType;
@@ -86,50 +88,21 @@ public class WorldServerProxy extends WorldServer {
 
 		m_realWorld = realWorld;
 		m_proxyWorld = proxyWorld;
-		ParseAndSetPrefix(modClass);
+		m_modPrefix = Util.getClassDomainFromName(modClass);
 
 		InjectionHandler.copyAllFieldsFrom(this, m_realWorld, WorldServer.class);
-	}
 
-	private void ParseAndSetPrefix(String className) {
-
-		String[] parts = className.split("\\.");
-
-		String prefix = "";
-
-		int index = 0;
-
-		for (; index < Math.min(parts.length, 3); index++)
-		{
-			prefix += parts[index];
-
-			if (!parts[index].equals("net") && !parts[index].equals("com") && !parts[index].equals("org")) break;
-
-			prefix += ".";
+		try {
+			InjectionHandler.writeFieldOfType(
+					this,
+					new WorldProviderProxyServer(m_realWorld.provider, m_proxyWorld.provider, modClass),
+					WorldProvider.class);
+		} catch (IllegalAccessException e) {
+			Util.logger.logException("Unable to set WorldProviderProxyServer", e);
 		}
-
-		m_modPrefix = prefix;
-
-	}
-
-	private boolean isPrefixInCallStack() {
-
-		if (m_modPrefix == null || m_modPrefix.length() == 0) return false;
-
-		StackTraceElement[] stack = Thread.currentThread().getStackTrace();
-
-		for (StackTraceElement e : stack)
-		{
-			if (e.getClassName().startsWith(m_modPrefix)) return true;
-		}
-
-		return false;
-
 	}
 
 	/* Modified Functions */
-
-
 
 	/* Proxy Functions */
 
@@ -138,7 +111,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public TileEntity getTileEntity(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getTileEntity(pos);
 		} else if (m_realWorld != null ) {
 			return m_realWorld.getTileEntity(pos);
@@ -149,7 +122,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public IBlockState getBlockState(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getBlockState(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getBlockState(pos);
@@ -160,7 +133,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void markTileEntitiesInChunkForRemoval(Chunk chunk) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.markTileEntitiesInChunkForRemoval(chunk);
 		} else if (m_realWorld != null) {
 			m_realWorld.markTileEntitiesInChunkForRemoval(chunk);
@@ -171,7 +144,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public SpawnListEntry getSpawnListEntryForTypeAt(EnumCreatureType creatureType, BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getSpawnListEntryForTypeAt(creatureType, pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getSpawnListEntryForTypeAt(creatureType, pos);
@@ -183,7 +156,7 @@ public class WorldServerProxy extends WorldServer {
 	@Override
 	public boolean canCreatureTypeSpawnHere(EnumCreatureType creatureType, SpawnListEntry spawnListEntry,
 			BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.canCreatureTypeSpawnHere(creatureType, spawnListEntry, pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.canCreatureTypeSpawnHere(creatureType, spawnListEntry, pos);
@@ -194,7 +167,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean areAllPlayersAsleep() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.areAllPlayersAsleep();
 		} else if (m_realWorld != null) {
 			return m_realWorld.areAllPlayersAsleep();
@@ -205,7 +178,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void resetUpdateEntityTick() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.resetUpdateEntityTick();
 		} else if (m_realWorld != null) {
 			m_realWorld.resetUpdateEntityTick();
@@ -216,7 +189,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public BlockPos getSpawnCoordinate() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getSpawnCoordinate();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getSpawnCoordinate();
@@ -227,7 +200,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void saveAllChunks(boolean all, IProgressUpdate progressCallback) throws MinecraftException {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.saveAllChunks(all, progressCallback);
 		} else if (m_realWorld != null) {
 			m_realWorld.saveAllChunks(all, progressCallback);
@@ -238,7 +211,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void flushToDisk() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.flushToDisk();
 		} else if (m_realWorld != null) {
 			m_realWorld.flushToDisk();
@@ -249,7 +222,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void flush() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.flush();
 		} else if (m_realWorld != null) {
 			m_realWorld.flush();
@@ -260,7 +233,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public EntityTracker getEntityTracker() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getEntityTracker();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getEntityTracker();
@@ -271,7 +244,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public PlayerChunkMap getPlayerChunkMap() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getPlayerChunkMap();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getPlayerChunkMap();
@@ -282,7 +255,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public Teleporter getDefaultTeleporter() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getDefaultTeleporter();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getDefaultTeleporter();
@@ -293,7 +266,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public TemplateManager getStructureTemplateManager() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getStructureTemplateManager();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getStructureTemplateManager();
@@ -332,7 +305,7 @@ public class WorldServerProxy extends WorldServer {
 	public void spawnParticle(EntityPlayerMP player, EnumParticleTypes particle, boolean longDistance, double x,
 			double y, double z, int count, double xOffset, double yOffset, double zOffset, double speed,
 			int... arguments) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.spawnParticle(player, particle, longDistance, x, y, z, count, xOffset, yOffset, zOffset, speed, arguments);
 		} else if (m_realWorld != null) {
 			m_realWorld.spawnParticle(player, particle, longDistance, x, y, z, count, xOffset, yOffset, zOffset, speed, arguments);
@@ -343,7 +316,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public Entity getEntityFromUuid(UUID uuid) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getEntityFromUuid(uuid);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getEntityFromUuid(uuid);
@@ -354,7 +327,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public ListenableFuture<Object> addScheduledTask(Runnable runnableToSchedule) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.addScheduledTask(runnableToSchedule);
 		} else if (m_realWorld != null) {
 			return m_realWorld.addScheduledTask(runnableToSchedule);
@@ -365,7 +338,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isCallingFromMinecraftThread() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isCallingFromMinecraftThread();
 		} else if (m_realWorld != null) {
 			return m_realWorld.isCallingFromMinecraftThread();
@@ -376,7 +349,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public AdvancementManager getAdvancementManager() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getAdvancementManager();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getAdvancementManager();
@@ -387,7 +360,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public FunctionManager getFunctionManager() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getFunctionManager();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getFunctionManager();
@@ -398,7 +371,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public File getChunkSaveLocation() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getChunkSaveLocation();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getChunkSaveLocation();
@@ -409,7 +382,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public World init() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.init();
 		} else if (m_realWorld != null) {
 			return m_realWorld.init();
@@ -420,7 +393,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public Biome getBiome(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getBiome(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getBiome(pos);
@@ -431,7 +404,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public Biome getBiomeForCoordsBody(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getBiomeForCoordsBody(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getBiomeForCoordsBody(pos);
@@ -442,7 +415,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public BiomeProvider getBiomeProvider() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getBiomeProvider();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getBiomeProvider();
@@ -453,7 +426,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void initialize(WorldSettings settings) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.initialize(settings);
 		} else if (m_realWorld != null) {
 			m_realWorld.initialize(settings);
@@ -464,7 +437,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public MinecraftServer getMinecraftServer() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getMinecraftServer();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getMinecraftServer();
@@ -475,7 +448,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void setInitialSpawnLocation() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.setInitialSpawnLocation();
 		} else if (m_realWorld != null) {
 			m_realWorld.setInitialSpawnLocation();
@@ -486,7 +459,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public IBlockState getGroundAboveSeaLevel(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getGroundAboveSeaLevel(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getGroundAboveSeaLevel(pos);
@@ -497,7 +470,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isValid(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isValid(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isValid(pos);
@@ -508,7 +481,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isOutsideBuildHeight(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isOutsideBuildHeight(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isOutsideBuildHeight(pos);
@@ -519,7 +492,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isAirBlock(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isAirBlock(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isAirBlock(pos);
@@ -530,7 +503,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isBlockLoaded(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isBlockLoaded(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isBlockLoaded(pos);
@@ -541,7 +514,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isBlockLoaded(BlockPos pos, boolean allowEmpty) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isBlockLoaded(pos, allowEmpty);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isBlockLoaded(pos, allowEmpty);
@@ -552,7 +525,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isAreaLoaded(BlockPos center, int radius) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isAreaLoaded(center, radius);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isAreaLoaded(center, radius);
@@ -563,7 +536,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isAreaLoaded(BlockPos center, int radius, boolean allowEmpty) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isAreaLoaded(center, radius, allowEmpty);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isAreaLoaded(center, radius, allowEmpty);
@@ -574,7 +547,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isAreaLoaded(BlockPos from, BlockPos to) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isAreaLoaded(from, to);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isAreaLoaded(from, to);
@@ -585,7 +558,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isAreaLoaded(BlockPos from, BlockPos to, boolean allowEmpty) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isAreaLoaded(from, to, allowEmpty);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isAreaLoaded(from, to, allowEmpty);
@@ -596,7 +569,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isAreaLoaded(StructureBoundingBox box) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isAreaLoaded(box);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isAreaLoaded(box);
@@ -607,7 +580,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isAreaLoaded(StructureBoundingBox box, boolean allowEmpty) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isAreaLoaded(box, allowEmpty);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isAreaLoaded(box, allowEmpty);
@@ -618,7 +591,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public Chunk getChunkFromBlockCoords(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getChunkFromBlockCoords(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getChunkFromBlockCoords(pos);
@@ -629,7 +602,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public Chunk getChunkFromChunkCoords(int chunkX, int chunkZ) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getChunkFromChunkCoords(chunkX, chunkZ);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getChunkFromChunkCoords(chunkX, chunkZ);
@@ -640,7 +613,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isChunkGeneratedAt(int x, int z) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isChunkGeneratedAt(x, z);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isChunkGeneratedAt(x, z);
@@ -651,7 +624,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean setBlockState(BlockPos pos, IBlockState newState, int flags) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.setBlockState(pos, newState, flags);
 		} else if (m_realWorld != null) {
 			return m_realWorld.setBlockState(pos, newState, flags);
@@ -663,7 +636,7 @@ public class WorldServerProxy extends WorldServer {
 	@Override
 	public void markAndNotifyBlock(BlockPos pos, Chunk chunk, IBlockState iblockstate, IBlockState newState,
 			int flags) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.markAndNotifyBlock(pos, chunk, iblockstate, newState, flags);
 		} else if (m_realWorld != null) {
 			m_realWorld.markAndNotifyBlock(pos, chunk, iblockstate, newState, flags);
@@ -674,7 +647,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean setBlockToAir(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.setBlockToAir(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.setBlockToAir(pos);
@@ -685,7 +658,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean destroyBlock(BlockPos pos, boolean dropBlock) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.destroyBlock(pos, dropBlock);
 		} else if (m_realWorld != null) {
 			return m_realWorld.destroyBlock(pos, dropBlock);
@@ -696,7 +669,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean setBlockState(BlockPos pos, IBlockState state) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.setBlockState(pos, state);
 		} else if (m_realWorld != null) {
 			return m_realWorld.setBlockState(pos, state);
@@ -707,7 +680,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void notifyBlockUpdate(BlockPos pos, IBlockState oldState, IBlockState newState, int flags) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.notifyBlockUpdate(pos, oldState, newState, flags);
 		} else if (m_realWorld != null) {
 			m_realWorld.notifyBlockUpdate(pos, oldState, newState, flags);
@@ -718,7 +691,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void notifyNeighborsRespectDebug(BlockPos pos, Block blockType, boolean p_175722_3_) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.notifyNeighborsRespectDebug(pos, blockType, p_175722_3_);
 		} else if (m_realWorld != null) {
 			m_realWorld.notifyNeighborsRespectDebug(pos, blockType, p_175722_3_);
@@ -729,7 +702,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void markBlocksDirtyVertical(int x1, int z1, int x2, int z2) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.markBlocksDirtyVertical(x1, z1, x2, z2);
 		} else if (m_realWorld != null) {
 			m_realWorld.markBlocksDirtyVertical(x1, z1, x2, z2);
@@ -740,7 +713,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void markBlockRangeForRenderUpdate(BlockPos rangeMin, BlockPos rangeMax) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.markBlockRangeForRenderUpdate(rangeMin, rangeMax);
 		} else if (m_realWorld != null) {
 			m_realWorld.markBlockRangeForRenderUpdate(rangeMin, rangeMax);
@@ -751,7 +724,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void markBlockRangeForRenderUpdate(int x1, int y1, int z1, int x2, int y2, int z2) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.markBlockRangeForRenderUpdate(x1, y1, z1, x2, y2, z2);
 		} else if (m_realWorld != null) {
 			m_realWorld.markBlockRangeForRenderUpdate(x1, y1, z1, x2, y2, z2);
@@ -762,7 +735,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void updateObservingBlocksAt(BlockPos pos, Block blockType) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.updateObservingBlocksAt(pos, blockType);
 		} else if (m_realWorld != null) {
 			m_realWorld.updateObservingBlocksAt(pos, blockType);
@@ -773,7 +746,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void notifyNeighborsOfStateChange(BlockPos pos, Block blockType, boolean updateObservers) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.notifyNeighborsOfStateChange(pos, blockType, updateObservers);
 		} else if (m_realWorld != null) {
 			m_realWorld.notifyNeighborsOfStateChange(pos, blockType, updateObservers);
@@ -784,7 +757,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void notifyNeighborsOfStateExcept(BlockPos pos, Block blockType, EnumFacing skipSide) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.notifyNeighborsOfStateExcept(pos, blockType, skipSide);
 		} else if (m_realWorld != null) {
 			m_realWorld.notifyNeighborsOfStateExcept(pos, blockType, skipSide);
@@ -795,7 +768,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void neighborChanged(BlockPos pos, Block p_190524_2_, BlockPos p_190524_3_) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.neighborChanged(pos, p_190524_2_, p_190524_3_);
 		} else if (m_realWorld != null) {
 			m_realWorld.neighborChanged(pos, p_190524_2_, p_190524_3_);
@@ -806,7 +779,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void observedNeighborChanged(BlockPos pos, Block p_190529_2_, BlockPos p_190529_3_) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.observedNeighborChanged(pos, p_190529_2_, p_190529_3_);
 		} else if (m_realWorld != null) {
 			m_realWorld.observedNeighborChanged(pos, p_190529_2_, p_190529_3_);
@@ -817,7 +790,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isBlockTickPending(BlockPos pos, Block blockType) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isBlockTickPending(pos, blockType);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isBlockTickPending(pos, blockType);
@@ -828,7 +801,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean canSeeSky(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.canSeeSky(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.canSeeSky(pos);
@@ -839,7 +812,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean canBlockSeeSky(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.canBlockSeeSky(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.canBlockSeeSky(pos);
@@ -850,7 +823,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public int getLight(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getLight(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getLight(pos);
@@ -861,7 +834,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public int getLightFromNeighbors(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getLightFromNeighbors(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getLightFromNeighbors(pos);
@@ -872,7 +845,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public int getLight(BlockPos pos, boolean checkNeighbors) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getLight(pos, checkNeighbors);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getLight(pos, checkNeighbors);
@@ -883,7 +856,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public BlockPos getHeight(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getHeight(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getHeight(pos);
@@ -894,7 +867,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public int getHeight(int x, int z) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getHeight(x, z);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getHeight(x, z);
@@ -906,7 +879,7 @@ public class WorldServerProxy extends WorldServer {
 	@SuppressWarnings("deprecation")
 	@Override
 	public int getChunksLowestHorizon(int x, int z) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getChunksLowestHorizon(x, z);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getChunksLowestHorizon(x, z);
@@ -917,7 +890,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public int getLightFromNeighborsFor(EnumSkyBlock type, BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getLightFromNeighborsFor(type, pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getLightFromNeighborsFor(type, pos);
@@ -928,7 +901,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public int getLightFor(EnumSkyBlock type, BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getLightFor(type, pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getLightFor(type, pos);
@@ -939,7 +912,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void setLightFor(EnumSkyBlock type, BlockPos pos, int lightValue) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.setLightFor(type, pos, lightValue);
 		} else if (m_realWorld != null) {
 			m_realWorld.setLightFor(type, pos, lightValue);
@@ -950,7 +923,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void notifyLightSet(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.notifyLightSet(pos);
 		} else if (m_realWorld != null) {
 			m_realWorld.notifyLightSet(pos);
@@ -961,7 +934,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public int getCombinedLight(BlockPos pos, int lightValue) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getCombinedLight(pos, lightValue);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getCombinedLight(pos, lightValue);
@@ -972,7 +945,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public float getLightBrightness(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getLightBrightness(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getLightBrightness(pos);
@@ -983,7 +956,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isDaytime() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isDaytime();
 		} else if (m_realWorld != null) {
 			return m_realWorld.isDaytime();
@@ -994,7 +967,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public RayTraceResult rayTraceBlocks(Vec3d start, Vec3d end) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.rayTraceBlocks(start, end);
 		} else if (m_realWorld != null) {
 			return m_realWorld.rayTraceBlocks(start, end);
@@ -1005,7 +978,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public RayTraceResult rayTraceBlocks(Vec3d start, Vec3d end, boolean stopOnLiquid) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.rayTraceBlocks(start, end, stopOnLiquid);
 		} else if (m_realWorld != null) {
 			return m_realWorld.rayTraceBlocks(start, end, stopOnLiquid);
@@ -1017,7 +990,7 @@ public class WorldServerProxy extends WorldServer {
 	@Override
 	public RayTraceResult rayTraceBlocks(Vec3d vec31, Vec3d vec32, boolean stopOnLiquid,
 			boolean ignoreBlockWithoutBoundingBox, boolean returnLastUncollidableBlock) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.rayTraceBlocks(vec31, vec32, stopOnLiquid, ignoreBlockWithoutBoundingBox, returnLastUncollidableBlock);
 		} else if (m_realWorld != null) {
 			return m_realWorld.rayTraceBlocks(vec31, vec32, stopOnLiquid, ignoreBlockWithoutBoundingBox, returnLastUncollidableBlock);
@@ -1029,7 +1002,7 @@ public class WorldServerProxy extends WorldServer {
 	@Override
 	public void playSound(EntityPlayer player, BlockPos pos, SoundEvent soundIn, SoundCategory category, float volume,
 			float pitch) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.playSound(player, pos, soundIn, category, volume, pitch);
 		} else if (m_realWorld != null) {
 			m_realWorld.playSound(player, pos, soundIn, category, volume, pitch);
@@ -1041,7 +1014,7 @@ public class WorldServerProxy extends WorldServer {
 	@Override
 	public void playSound(EntityPlayer player, double x, double y, double z, SoundEvent soundIn, SoundCategory category,
 			float volume, float pitch) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.playSound(player, x, y, z, soundIn, category, volume, pitch);
 		} else if (m_realWorld != null) {
 			m_realWorld.playSound(player, x, y, z, soundIn, category, volume, pitch);
@@ -1053,7 +1026,7 @@ public class WorldServerProxy extends WorldServer {
 	@Override
 	public void playSound(double x, double y, double z, SoundEvent soundIn, SoundCategory category, float volume,
 			float pitch, boolean distanceDelay) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.playSound(x, y, z, soundIn, category, volume, pitch, distanceDelay);
 		} else if (m_realWorld != null) {
 			m_realWorld.playSound(x, y, z, soundIn, category, volume, pitch, distanceDelay);
@@ -1064,7 +1037,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void playRecord(BlockPos blockPositionIn, SoundEvent soundEventIn) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.playRecord(blockPositionIn, soundEventIn);
 		} else if (m_realWorld != null) {
 			m_realWorld.playRecord(blockPositionIn, soundEventIn);
@@ -1076,7 +1049,7 @@ public class WorldServerProxy extends WorldServer {
 	@Override
 	public void spawnParticle(EnumParticleTypes particleType, double xCoord, double yCoord, double zCoord,
 			double xSpeed, double ySpeed, double zSpeed, int... parameters) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.spawnParticle(particleType, xCoord, yCoord, zCoord, xSpeed, ySpeed, zSpeed, parameters);
 		} else if (m_realWorld != null) {
 			m_realWorld.spawnParticle(particleType, xCoord, yCoord, zCoord, xSpeed, ySpeed, zSpeed, parameters);
@@ -1101,7 +1074,7 @@ public class WorldServerProxy extends WorldServer {
 	@Override
 	public void spawnParticle(EnumParticleTypes particleType, boolean ignoreRange, double xCoord, double yCoord,
 			double zCoord, double xSpeed, double ySpeed, double zSpeed, int... parameters) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.spawnParticle(particleType, ignoreRange, xCoord, yCoord, zCoord, xSpeed, ySpeed, zSpeed, parameters);
 		} else if (m_realWorld != null) {
 			m_realWorld.spawnParticle(particleType, ignoreRange, xCoord, yCoord, zCoord, xSpeed, ySpeed, zSpeed, parameters);
@@ -1112,7 +1085,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean addWeatherEffect(Entity entityIn) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.addWeatherEffect(entityIn);
 		} else if (m_realWorld != null) {
 			return m_realWorld.addWeatherEffect(entityIn);
@@ -1123,7 +1096,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean spawnEntity(Entity entityIn) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.spawnEntity(entityIn);
 		} else if (m_realWorld != null) {
 			return m_realWorld.spawnEntity(entityIn);
@@ -1134,7 +1107,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void onEntityAdded(Entity entityIn) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.onEntityAdded(entityIn);
 		} else if (m_realWorld != null) {
 			m_realWorld.onEntityAdded(entityIn);
@@ -1145,7 +1118,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void onEntityRemoved(Entity entityIn) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.onEntityRemoved(entityIn);
 		} else if (m_realWorld != null) {
 			m_realWorld.onEntityRemoved(entityIn);
@@ -1156,7 +1129,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void removeEntity(Entity entityIn) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.removeEntity(entityIn);
 		} else if (m_realWorld != null) {
 			m_realWorld.removeEntity(entityIn);
@@ -1167,7 +1140,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void removeEntityDangerously(Entity entityIn) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.removeEntityDangerously(entityIn);
 		} else if (m_realWorld != null) {
 			m_realWorld.removeEntityDangerously(entityIn);
@@ -1178,7 +1151,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void addEventListener(IWorldEventListener listener) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.addEventListener(listener);
 		} else if (m_realWorld != null) {
 			m_realWorld.addEventListener(listener);
@@ -1189,7 +1162,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public List<AxisAlignedBB> getCollisionBoxes(Entity entityIn, AxisAlignedBB aabb) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getCollisionBoxes(entityIn, aabb);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getCollisionBoxes(entityIn, aabb);
@@ -1200,7 +1173,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void removeEventListener(IWorldEventListener listener) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.removeEventListener(listener);
 		} else if (m_realWorld != null) {
 			m_realWorld.removeEventListener(listener);
@@ -1211,7 +1184,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isInsideWorldBorder(Entity p_191503_1_) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isInsideWorldBorder(p_191503_1_);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isInsideWorldBorder(p_191503_1_);
@@ -1222,7 +1195,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean collidesWithAnyBlock(AxisAlignedBB bbox) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.collidesWithAnyBlock(bbox);
 		} else if (m_realWorld != null) {
 			return m_realWorld.collidesWithAnyBlock(bbox);
@@ -1233,7 +1206,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public int calculateSkylightSubtracted(float partialTicks) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.calculateSkylightSubtracted(partialTicks);
 		} else if (m_realWorld != null) {
 			return m_realWorld.calculateSkylightSubtracted(partialTicks);
@@ -1244,7 +1217,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public float getSunBrightnessFactor(float partialTicks) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getSunBrightnessFactor(partialTicks);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getSunBrightnessFactor(partialTicks);
@@ -1255,7 +1228,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public float getSunBrightness(float partialTicks) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getSunBrightness(partialTicks);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getSunBrightness(partialTicks);
@@ -1266,7 +1239,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public float getSunBrightnessBody(float partialTicks) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getSunBrightnessBody(partialTicks);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getSunBrightnessBody(partialTicks);
@@ -1277,7 +1250,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public Vec3d getSkyColor(Entity entityIn, float partialTicks) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getSkyColor(entityIn, partialTicks);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getSkyColor(entityIn, partialTicks);
@@ -1288,7 +1261,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public Vec3d getSkyColorBody(Entity entityIn, float partialTicks) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getSkyColorBody(entityIn, partialTicks);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getSkyColorBody(entityIn, partialTicks);
@@ -1299,7 +1272,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public float getCelestialAngle(float partialTicks) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getCelestialAngle(partialTicks);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getCelestialAngle(partialTicks);
@@ -1310,7 +1283,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public int getMoonPhase() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getMoonPhase();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getMoonPhase();
@@ -1321,7 +1294,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public float getCurrentMoonPhaseFactor() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getCurrentMoonPhaseFactor();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getCurrentMoonPhaseFactor();
@@ -1332,7 +1305,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public float getCurrentMoonPhaseFactorBody() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getCurrentMoonPhaseFactorBody();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getCurrentMoonPhaseFactorBody();
@@ -1343,7 +1316,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public float getCelestialAngleRadians(float partialTicks) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getCelestialAngleRadians(partialTicks);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getCelestialAngleRadians(partialTicks);
@@ -1354,7 +1327,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public Vec3d getCloudColour(float partialTicks) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getCloudColour(partialTicks);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getCloudColour(partialTicks);
@@ -1365,7 +1338,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public Vec3d getCloudColorBody(float partialTicks) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getCloudColorBody(partialTicks);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getCloudColorBody(partialTicks);
@@ -1376,7 +1349,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public Vec3d getFogColor(float partialTicks) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getFogColor(partialTicks);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getFogColor(partialTicks);
@@ -1387,7 +1360,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public BlockPos getPrecipitationHeight(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getPrecipitationHeight(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getPrecipitationHeight(pos);
@@ -1398,7 +1371,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public BlockPos getTopSolidOrLiquidBlock(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getTopSolidOrLiquidBlock(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getTopSolidOrLiquidBlock(pos);
@@ -1409,7 +1382,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public float getStarBrightness(float partialTicks) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getStarBrightness(partialTicks);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getStarBrightness(partialTicks);
@@ -1420,7 +1393,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public float getStarBrightnessBody(float partialTicks) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getStarBrightnessBody(partialTicks);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getStarBrightnessBody(partialTicks);
@@ -1431,7 +1404,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isUpdateScheduled(BlockPos pos, Block blk) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isUpdateScheduled(pos, blk);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isUpdateScheduled(pos, blk);
@@ -1442,7 +1415,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void scheduleUpdate(BlockPos pos, Block blockIn, int delay) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.scheduleUpdate(pos, blockIn, delay);
 		} else if (m_realWorld != null) {
 			m_realWorld.scheduleUpdate(pos, blockIn, delay);
@@ -1453,7 +1426,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void updateBlockTick(BlockPos pos, Block blockIn, int delay, int priority) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.updateBlockTick(pos, blockIn, delay, priority);
 		} else if (m_realWorld != null) {
 			m_realWorld.updateBlockTick(pos, blockIn, delay, priority);
@@ -1464,7 +1437,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void scheduleBlockUpdate(BlockPos pos, Block blockIn, int delay, int priority) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.scheduleBlockUpdate(pos, blockIn, delay, priority);
 		} else if (m_realWorld != null) {
 			m_realWorld.scheduleBlockUpdate(pos, blockIn, delay, priority);
@@ -1475,7 +1448,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void updateEntities() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.updateEntities();
 		} else if (m_realWorld != null) {
 			m_realWorld.updateEntities();
@@ -1486,7 +1459,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean addTileEntity(TileEntity tile) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.addTileEntity(tile);
 		} else if (m_realWorld != null) {
 			return m_realWorld.addTileEntity(tile);
@@ -1497,7 +1470,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void addTileEntities(Collection<TileEntity> tileEntityCollection) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.addTileEntities(tileEntityCollection);
 		} else if (m_realWorld != null) {
 			m_realWorld.addTileEntities(tileEntityCollection);
@@ -1508,7 +1481,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void updateEntity(Entity ent) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.updateEntity(ent);
 		} else if (m_realWorld != null) {
 			m_realWorld.updateEntity(ent);
@@ -1519,7 +1492,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void updateEntityWithOptionalForce(Entity entityIn, boolean forceUpdate) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.updateEntityWithOptionalForce(entityIn, forceUpdate);
 		} else if (m_realWorld != null) {
 			m_realWorld.updateEntityWithOptionalForce(entityIn, forceUpdate);
@@ -1530,7 +1503,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean checkNoEntityCollision(AxisAlignedBB bb) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.checkNoEntityCollision(bb);
 		} else if (m_realWorld != null) {
 			return m_realWorld.checkNoEntityCollision(bb);
@@ -1541,7 +1514,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean checkNoEntityCollision(AxisAlignedBB bb, Entity entityIn) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.checkNoEntityCollision(bb, entityIn);
 		} else if (m_realWorld != null) {
 			return m_realWorld.checkNoEntityCollision(bb, entityIn);
@@ -1552,7 +1525,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean checkBlockCollision(AxisAlignedBB bb) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.checkBlockCollision(bb);
 		} else if (m_realWorld != null) {
 			return m_realWorld.checkBlockCollision(bb);
@@ -1563,7 +1536,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean containsAnyLiquid(AxisAlignedBB bb) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.containsAnyLiquid(bb);
 		} else if (m_realWorld != null) {
 			return m_realWorld.containsAnyLiquid(bb);
@@ -1574,7 +1547,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isFlammableWithin(AxisAlignedBB bb) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isFlammableWithin(bb);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isFlammableWithin(bb);
@@ -1585,7 +1558,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean handleMaterialAcceleration(AxisAlignedBB bb, Material materialIn, Entity entityIn) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.handleMaterialAcceleration(bb, materialIn, entityIn);
 		} else if (m_realWorld != null) {
 			return m_realWorld.handleMaterialAcceleration(bb, materialIn, entityIn);
@@ -1596,7 +1569,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isMaterialInBB(AxisAlignedBB bb, Material materialIn) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isMaterialInBB(bb, materialIn);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isMaterialInBB(bb, materialIn);
@@ -1607,7 +1580,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public Explosion createExplosion(Entity entityIn, double x, double y, double z, float strength, boolean isSmoking) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.createExplosion(entityIn, x, y, z, strength, isSmoking);
 		} else if (m_realWorld != null) {
 			return m_realWorld.createExplosion(entityIn, x, y, z, strength, isSmoking);
@@ -1619,7 +1592,7 @@ public class WorldServerProxy extends WorldServer {
 	@Override
 	public Explosion newExplosion(Entity entityIn, double x, double y, double z, float strength, boolean isFlaming,
 			boolean isSmoking) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.newExplosion(entityIn, x, y, z, strength, isFlaming, isSmoking);
 		} else if (m_realWorld != null) {
 			return m_realWorld.newExplosion(entityIn, x, y, z, strength, isFlaming, isSmoking);
@@ -1630,7 +1603,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public float getBlockDensity(Vec3d vec, AxisAlignedBB bb) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getBlockDensity(vec, bb);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getBlockDensity(vec, bb);
@@ -1641,7 +1614,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean extinguishFire(EntityPlayer player, BlockPos pos, EnumFacing side) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.extinguishFire(player, pos, side);
 		} else if (m_realWorld != null) {
 			return m_realWorld.extinguishFire(player, pos, side);
@@ -1652,7 +1625,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public String getDebugLoadedEntities() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getDebugLoadedEntities();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getDebugLoadedEntities();
@@ -1663,7 +1636,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public String getProviderName() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getProviderName();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getProviderName();
@@ -1674,7 +1647,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void setTileEntity(BlockPos pos, TileEntity tileEntityIn) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.setTileEntity(pos, tileEntityIn);
 		} else if (m_realWorld != null) {
 			m_realWorld.setTileEntity(pos, tileEntityIn);
@@ -1685,7 +1658,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void removeTileEntity(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.removeTileEntity(pos);
 		} else if (m_realWorld != null) {
 			m_realWorld.removeTileEntity(pos);
@@ -1696,7 +1669,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void markTileEntityForRemoval(TileEntity tileEntityIn) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.markTileEntityForRemoval(tileEntityIn);
 		} else if (m_realWorld != null) {
 			m_realWorld.markTileEntityForRemoval(tileEntityIn);
@@ -1707,7 +1680,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isBlockFullCube(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isBlockFullCube(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isBlockFullCube(pos);
@@ -1718,7 +1691,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isBlockNormalCube(BlockPos pos, boolean _default) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isBlockNormalCube(pos, _default);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isBlockNormalCube(pos, _default);
@@ -1729,7 +1702,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void calculateInitialSkylight() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.calculateInitialSkylight();
 		} else if (m_realWorld != null) {
 			m_realWorld.calculateInitialSkylight();
@@ -1740,7 +1713,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void setAllowedSpawnTypes(boolean hostile, boolean peaceful) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.setAllowedSpawnTypes(hostile, peaceful);
 		} else if (m_realWorld != null) {
 			m_realWorld.setAllowedSpawnTypes(hostile, peaceful);
@@ -1751,7 +1724,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void tick() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.tick();
 		} else if (m_realWorld != null) {
 			m_realWorld.tick();
@@ -1762,7 +1735,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void calculateInitialWeatherBody() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.calculateInitialWeatherBody();
 		} else if (m_realWorld != null) {
 			m_realWorld.calculateInitialWeatherBody();
@@ -1773,7 +1746,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void updateWeatherBody() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.updateWeatherBody();
 		} else if (m_realWorld != null) {
 			m_realWorld.updateWeatherBody();
@@ -1784,7 +1757,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void immediateBlockTick(BlockPos pos, IBlockState state, Random random) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.immediateBlockTick(pos, state, random);
 		} else if (m_realWorld != null) {
 			m_realWorld.immediateBlockTick(pos, state, random);
@@ -1795,7 +1768,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean canBlockFreezeWater(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.canBlockFreezeWater(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.canBlockFreezeWater(pos);
@@ -1806,7 +1779,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean canBlockFreezeNoWater(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.canBlockFreezeNoWater(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.canBlockFreezeNoWater(pos);
@@ -1817,7 +1790,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean canBlockFreeze(BlockPos pos, boolean noWaterAdj) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.canBlockFreeze(pos, noWaterAdj);
 		} else if (m_realWorld != null) {
 			return m_realWorld.canBlockFreeze(pos, noWaterAdj);
@@ -1828,7 +1801,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean canBlockFreezeBody(BlockPos pos, boolean noWaterAdj) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.canBlockFreezeBody(pos, noWaterAdj);
 		} else if (m_realWorld != null) {
 			return m_realWorld.canBlockFreezeBody(pos, noWaterAdj);
@@ -1839,7 +1812,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean canSnowAt(BlockPos pos, boolean checkLight) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.canSnowAt(pos, checkLight);
 		} else if (m_realWorld != null) {
 			return m_realWorld.canSnowAt(pos, checkLight);
@@ -1850,7 +1823,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean canSnowAtBody(BlockPos pos, boolean checkLight) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.canSnowAtBody(pos, checkLight);
 		} else if (m_realWorld != null) {
 			return m_realWorld.canSnowAtBody(pos, checkLight);
@@ -1861,7 +1834,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean checkLight(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.checkLight(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.checkLight(pos);
@@ -1872,7 +1845,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean checkLightFor(EnumSkyBlock lightType, BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.checkLightFor(lightType, pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.checkLightFor(lightType, pos);
@@ -1883,7 +1856,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean tickUpdates(boolean runAllPending) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.tickUpdates(runAllPending);
 		} else if (m_realWorld != null) {
 			return m_realWorld.tickUpdates(runAllPending);
@@ -1894,7 +1867,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public List<NextTickListEntry> getPendingBlockUpdates(Chunk chunkIn, boolean remove) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getPendingBlockUpdates(chunkIn, remove);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getPendingBlockUpdates(chunkIn, remove);
@@ -1905,7 +1878,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public List<NextTickListEntry> getPendingBlockUpdates(StructureBoundingBox structureBB, boolean remove) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getPendingBlockUpdates(structureBB, remove);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getPendingBlockUpdates(structureBB, remove);
@@ -1916,7 +1889,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public List<Entity> getEntitiesWithinAABBExcludingEntity(Entity entityIn, AxisAlignedBB bb) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getEntitiesWithinAABBExcludingEntity(entityIn, bb);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getEntitiesWithinAABBExcludingEntity(entityIn, bb);
@@ -1928,7 +1901,7 @@ public class WorldServerProxy extends WorldServer {
 	@Override
 	public List<Entity> getEntitiesInAABBexcluding(Entity entityIn, AxisAlignedBB boundingBox,
 			Predicate<? super Entity> predicate) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getEntitiesInAABBexcluding(entityIn, boundingBox, predicate);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getEntitiesInAABBexcluding(entityIn, boundingBox, predicate);
@@ -1939,7 +1912,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public <T extends Entity> List<T> getEntities(Class<? extends T> entityType, Predicate<? super T> filter) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getEntities(entityType, filter);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getEntities(entityType, filter);
@@ -1950,7 +1923,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public <T extends Entity> List<T> getPlayers(Class<? extends T> playerType, Predicate<? super T> filter) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getPlayers(playerType, filter);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getPlayers(playerType, filter);
@@ -1961,7 +1934,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public <T extends Entity> List<T> getEntitiesWithinAABB(Class<? extends T> classEntity, AxisAlignedBB bb) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getEntitiesWithinAABB(classEntity, bb);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getEntitiesWithinAABB(classEntity, bb);
@@ -1973,7 +1946,7 @@ public class WorldServerProxy extends WorldServer {
 	@Override
 	public <T extends Entity> List<T> getEntitiesWithinAABB(Class<? extends T> clazz, AxisAlignedBB aabb,
 			Predicate<? super T> filter) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getEntitiesWithinAABB(clazz, aabb, filter);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getEntitiesWithinAABB(clazz, aabb, filter);
@@ -1985,7 +1958,7 @@ public class WorldServerProxy extends WorldServer {
 	@Override
 	public <T extends Entity> T findNearestEntityWithinAABB(Class<? extends T> entityType, AxisAlignedBB aabb,
 			T closestTo) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.findNearestEntityWithinAABB(entityType, aabb, closestTo);
 		} else if (m_realWorld != null) {
 			return m_realWorld.findNearestEntityWithinAABB(entityType, aabb, closestTo);
@@ -1996,7 +1969,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public Entity getEntityByID(int id) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getEntityByID(id);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getEntityByID(id);
@@ -2007,7 +1980,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public List<Entity> getLoadedEntityList() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getLoadedEntityList();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getLoadedEntityList();
@@ -2018,7 +1991,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void markChunkDirty(BlockPos pos, TileEntity unusedTileEntity) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.markChunkDirty(pos, unusedTileEntity);
 		} else if (m_realWorld != null) {
 			m_realWorld.markChunkDirty(pos, unusedTileEntity);
@@ -2029,7 +2002,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public int countEntities(Class<?> entityType) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.countEntities(entityType);
 		} else if (m_realWorld != null) {
 			return m_realWorld.countEntities(entityType);
@@ -2040,7 +2013,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void loadEntities(Collection<Entity> entityCollection) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.loadEntities(entityCollection);
 		} else if (m_realWorld != null) {
 			m_realWorld.loadEntities(entityCollection);
@@ -2051,7 +2024,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void unloadEntities(Collection<Entity> entityCollection) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.unloadEntities(entityCollection);
 		} else if (m_realWorld != null) {
 			m_realWorld.unloadEntities(entityCollection);
@@ -2062,7 +2035,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean mayPlace(Block blockIn, BlockPos pos, boolean p_190527_3_, EnumFacing sidePlacedOn, Entity placer) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.mayPlace(blockIn, pos, p_190527_3_, sidePlacedOn, placer);
 		} else if (m_realWorld != null) {
 			return m_realWorld.mayPlace(blockIn, pos, p_190527_3_, sidePlacedOn, placer);
@@ -2073,7 +2046,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public int getSeaLevel() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getSeaLevel();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getSeaLevel();
@@ -2084,7 +2057,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void setSeaLevel(int seaLevelIn) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.setSeaLevel(seaLevelIn);
 		} else if (m_realWorld != null) {
 			m_realWorld.setSeaLevel(seaLevelIn);
@@ -2095,7 +2068,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public int getStrongPower(BlockPos pos, EnumFacing direction) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getStrongPower(pos, direction);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getStrongPower(pos, direction);
@@ -2106,7 +2079,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public WorldType getWorldType() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getWorldType();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getWorldType();
@@ -2117,7 +2090,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public int getStrongPower(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getStrongPower(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getStrongPower(pos);
@@ -2128,7 +2101,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isSidePowered(BlockPos pos, EnumFacing side) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isSidePowered(pos, side);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isSidePowered(pos, side);
@@ -2139,7 +2112,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public int getRedstonePower(BlockPos pos, EnumFacing facing) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getRedstonePower(pos, facing);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getRedstonePower(pos, facing);
@@ -2150,7 +2123,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isBlockPowered(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isBlockPowered(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isBlockPowered(pos);
@@ -2161,7 +2134,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public int isBlockIndirectlyGettingPowered(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isBlockIndirectlyGettingPowered(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isBlockIndirectlyGettingPowered(pos);
@@ -2172,7 +2145,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public EntityPlayer getClosestPlayerToEntity(Entity entityIn, double distance) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getClosestPlayerToEntity(entityIn, distance);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getClosestPlayerToEntity(entityIn, distance);
@@ -2183,7 +2156,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public EntityPlayer getNearestPlayerNotCreative(Entity entityIn, double distance) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getNearestPlayerNotCreative(entityIn, distance);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getNearestPlayerNotCreative(entityIn, distance);
@@ -2194,7 +2167,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public EntityPlayer getClosestPlayer(double posX, double posY, double posZ, double distance, boolean spectator) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getClosestPlayer(posX, posY, posZ, distance, spectator);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getClosestPlayer(posX, posY, posZ, distance, spectator);
@@ -2206,7 +2179,7 @@ public class WorldServerProxy extends WorldServer {
 	@Override
 	public EntityPlayer getClosestPlayer(double x, double y, double z, double p_190525_7_,
 			Predicate<Entity> p_190525_9_) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getClosestPlayer(x, y, z, p_190525_7_, p_190525_9_);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getClosestPlayer(x, y, z, p_190525_7_, p_190525_9_);
@@ -2217,7 +2190,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isAnyPlayerWithinRangeAt(double x, double y, double z, double range) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isAnyPlayerWithinRangeAt(x, y, z, range);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isAnyPlayerWithinRangeAt(x, y, z, range);
@@ -2228,7 +2201,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public EntityPlayer getNearestAttackablePlayer(Entity entityIn, double maxXZDistance, double maxYDistance) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getNearestAttackablePlayer(entityIn, maxXZDistance, maxYDistance);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getNearestAttackablePlayer(entityIn, maxXZDistance, maxYDistance);
@@ -2239,7 +2212,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public EntityPlayer getNearestAttackablePlayer(BlockPos pos, double maxXZDistance, double maxYDistance) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getNearestAttackablePlayer(pos, maxXZDistance, maxYDistance);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getNearestAttackablePlayer(pos, maxXZDistance, maxYDistance);
@@ -2251,7 +2224,7 @@ public class WorldServerProxy extends WorldServer {
 	@Override
 	public EntityPlayer getNearestAttackablePlayer(double posX, double posY, double posZ, double maxXZDistance,
 			double maxYDistance, Function<EntityPlayer, Double> playerToDouble, Predicate<EntityPlayer> p_184150_12_) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getNearestAttackablePlayer(posX, posY, posZ, maxXZDistance, maxYDistance, playerToDouble, p_184150_12_);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getNearestAttackablePlayer(posX, posY, posZ, maxXZDistance, maxYDistance, playerToDouble, p_184150_12_);
@@ -2262,7 +2235,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public EntityPlayer getPlayerEntityByName(String name) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getPlayerEntityByName(name);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getPlayerEntityByName(name);
@@ -2273,7 +2246,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public EntityPlayer getPlayerEntityByUUID(UUID uuid) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getPlayerEntityByUUID(uuid);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getPlayerEntityByUUID(uuid);
@@ -2284,7 +2257,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void sendQuittingDisconnectingPacket() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.sendQuittingDisconnectingPacket();
 		} else if (m_realWorld != null) {
 			m_realWorld.sendQuittingDisconnectingPacket();
@@ -2295,7 +2268,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void checkSessionLock() throws MinecraftException {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.checkSessionLock();
 		} else if (m_realWorld != null) {
 			m_realWorld.checkSessionLock();
@@ -2306,7 +2279,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void setTotalWorldTime(long worldTime) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.setTotalWorldTime(worldTime);
 		} else if (m_realWorld != null) {
 			m_realWorld.setTotalWorldTime(worldTime);
@@ -2317,7 +2290,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public long getSeed() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getSeed();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getSeed();
@@ -2328,7 +2301,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public long getTotalWorldTime() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getTotalWorldTime();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getTotalWorldTime();
@@ -2339,7 +2312,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public long getWorldTime() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getWorldTime();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getWorldTime();
@@ -2350,7 +2323,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void setWorldTime(long time) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.setWorldTime(time);
 		} else if (m_realWorld != null) {
 			m_realWorld.setWorldTime(time);
@@ -2361,7 +2334,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public BlockPos getSpawnPoint() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getSpawnPoint();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getSpawnPoint();
@@ -2372,7 +2345,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void setSpawnPoint(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.setSpawnPoint(pos);
 		} else if (m_realWorld != null) {
 			m_realWorld.setSpawnPoint(pos);
@@ -2383,7 +2356,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void joinEntityInSurroundings(Entity entityIn) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.joinEntityInSurroundings(entityIn);
 		} else if (m_realWorld != null) {
 			m_realWorld.joinEntityInSurroundings(entityIn);
@@ -2394,7 +2367,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isBlockModifiable(EntityPlayer player, BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isBlockModifiable(player, pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isBlockModifiable(player, pos);
@@ -2405,7 +2378,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean canMineBlockBody(EntityPlayer player, BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.canMineBlockBody(player, pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.canMineBlockBody(player, pos);
@@ -2416,7 +2389,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void setEntityState(Entity entityIn, byte state) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.setEntityState(entityIn, state);
 		} else if (m_realWorld != null) {
 			m_realWorld.setEntityState(entityIn, state);
@@ -2427,7 +2400,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public ChunkProviderServer getChunkProvider() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getChunkProvider();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getChunkProvider();
@@ -2438,7 +2411,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void addBlockEvent(BlockPos pos, Block blockIn, int eventID, int eventParam) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.addBlockEvent(pos, blockIn, eventID, eventParam);
 		} else if (m_realWorld != null) {
 			m_realWorld.addBlockEvent(pos, blockIn, eventID, eventParam);
@@ -2449,7 +2422,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public ISaveHandler getSaveHandler() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getSaveHandler();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getSaveHandler();
@@ -2460,7 +2433,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public WorldInfo getWorldInfo() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getWorldInfo();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getWorldInfo();
@@ -2471,7 +2444,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public GameRules getGameRules() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getGameRules();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getGameRules();
@@ -2482,7 +2455,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void updateAllPlayersSleepingFlag() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.updateAllPlayersSleepingFlag();
 		} else if (m_realWorld != null) {
 			m_realWorld.updateAllPlayersSleepingFlag();
@@ -2493,7 +2466,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public float getThunderStrength(float delta) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getThunderStrength(delta);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getThunderStrength(delta);
@@ -2504,7 +2477,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void setThunderStrength(float strength) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.setThunderStrength(strength);
 		} else if (m_realWorld != null) {
 			m_realWorld.setThunderStrength(strength);
@@ -2515,7 +2488,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public float getRainStrength(float delta) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getRainStrength(delta);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getRainStrength(delta);
@@ -2526,7 +2499,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void setRainStrength(float strength) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.setRainStrength(strength);
 		} else if (m_realWorld != null) {
 			m_realWorld.setRainStrength(strength);
@@ -2537,7 +2510,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isThundering() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isThundering();
 		} else if (m_realWorld != null) {
 			return m_realWorld.isThundering();
@@ -2548,7 +2521,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isRaining() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isRaining();
 		} else if (m_realWorld != null) {
 			return m_realWorld.isRaining();
@@ -2559,7 +2532,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isRainingAt(BlockPos position) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isRainingAt(position);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isRainingAt(position);
@@ -2570,7 +2543,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isBlockinHighHumidity(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isBlockinHighHumidity(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isBlockinHighHumidity(pos);
@@ -2581,7 +2554,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public MapStorage getMapStorage() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getMapStorage();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getMapStorage();
@@ -2592,7 +2565,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void setData(String dataID, WorldSavedData worldSavedDataIn) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.setData(dataID, worldSavedDataIn);
 		} else if (m_realWorld != null) {
 			m_realWorld.setData(dataID, worldSavedDataIn);
@@ -2603,7 +2576,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public WorldSavedData loadData(Class<? extends WorldSavedData> clazz, String dataID) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.loadData(clazz, dataID);
 		} else if (m_realWorld != null) {
 			return m_realWorld.loadData(clazz, dataID);
@@ -2614,7 +2587,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public int getUniqueDataId(String key) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getUniqueDataId(key);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getUniqueDataId(key);
@@ -2625,7 +2598,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void playBroadcastSound(int id, BlockPos pos, int data) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.playBroadcastSound(id, pos, data);
 		} else if (m_realWorld != null) {
 			m_realWorld.playBroadcastSound(id, pos, data);
@@ -2636,7 +2609,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void playEvent(int type, BlockPos pos, int data) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.playEvent(type, pos, data);
 		} else if (m_realWorld != null) {
 			m_realWorld.playEvent(type, pos, data);
@@ -2647,7 +2620,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void playEvent(EntityPlayer player, int type, BlockPos pos, int data) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.playEvent(player, type, pos, data);
 		} else if (m_realWorld != null) {
 			m_realWorld.playEvent(player, type, pos, data);
@@ -2658,7 +2631,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public int getHeight() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getHeight();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getHeight();
@@ -2669,7 +2642,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public int getActualHeight() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getActualHeight();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getActualHeight();
@@ -2680,7 +2653,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public Random setRandomSeed(int p_72843_1_, int p_72843_2_, int p_72843_3_) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.setRandomSeed(p_72843_1_, p_72843_2_, p_72843_3_);
 		} else if (m_realWorld != null) {
 			return m_realWorld.setRandomSeed(p_72843_1_, p_72843_2_, p_72843_3_);
@@ -2691,7 +2664,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public CrashReportCategory addWorldInfoToCrashReport(CrashReport report) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.addWorldInfoToCrashReport(report);
 		} else if (m_realWorld != null) {
 			return m_realWorld.addWorldInfoToCrashReport(report);
@@ -2702,7 +2675,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public double getHorizon() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getHorizon();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getHorizon();
@@ -2713,7 +2686,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void sendBlockBreakProgress(int breakerId, BlockPos pos, int progress) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.sendBlockBreakProgress(breakerId, pos, progress);
 		} else if (m_realWorld != null) {
 			m_realWorld.sendBlockBreakProgress(breakerId, pos, progress);
@@ -2724,7 +2697,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public Calendar getCurrentDate() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getCurrentDate();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getCurrentDate();
@@ -2736,7 +2709,7 @@ public class WorldServerProxy extends WorldServer {
 	@Override
 	public void makeFireworks(double x, double y, double z, double motionX, double motionY, double motionZ,
 			NBTTagCompound compund) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.makeFireworks(x, y, z, motionX, motionY, motionZ, compund);
 		} else if (m_realWorld != null) {
 			m_realWorld.makeFireworks(x, y, z, motionX, motionY, motionZ, compund);
@@ -2747,7 +2720,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public Scoreboard getScoreboard() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getScoreboard();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getScoreboard();
@@ -2758,7 +2731,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void updateComparatorOutputLevel(BlockPos pos, Block blockIn) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.updateComparatorOutputLevel(pos, blockIn);
 		} else if (m_realWorld != null) {
 			m_realWorld.updateComparatorOutputLevel(pos, blockIn);
@@ -2769,7 +2742,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public DifficultyInstance getDifficultyForLocation(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getDifficultyForLocation(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getDifficultyForLocation(pos);
@@ -2780,7 +2753,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public EnumDifficulty getDifficulty() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getDifficulty();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getDifficulty();
@@ -2791,7 +2764,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public int getSkylightSubtracted() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getSkylightSubtracted();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getSkylightSubtracted();
@@ -2802,7 +2775,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void setSkylightSubtracted(int newSkylightSubtracted) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.setSkylightSubtracted(newSkylightSubtracted);
 		} else if (m_realWorld != null) {
 			m_realWorld.setSkylightSubtracted(newSkylightSubtracted);
@@ -2813,7 +2786,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public int getLastLightningBolt() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getLastLightningBolt();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getLastLightningBolt();
@@ -2824,7 +2797,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void setLastLightningBolt(int lastLightningBoltIn) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.setLastLightningBolt(lastLightningBoltIn);
 		} else if (m_realWorld != null) {
 			m_realWorld.setLastLightningBolt(lastLightningBoltIn);
@@ -2835,7 +2808,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public VillageCollection getVillageCollection() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getVillageCollection();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getVillageCollection();
@@ -2846,7 +2819,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public WorldBorder getWorldBorder() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getWorldBorder();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getWorldBorder();
@@ -2857,7 +2830,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isSpawnChunk(int x, int z) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isSpawnChunk(x, z);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isSpawnChunk(x, z);
@@ -2868,7 +2841,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isSideSolid(BlockPos pos, EnumFacing side) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isSideSolid(pos, side);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isSideSolid(pos, side);
@@ -2879,7 +2852,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean isSideSolid(BlockPos pos, EnumFacing side, boolean _default) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.isSideSolid(pos, side, _default);
 		} else if (m_realWorld != null) {
 			return m_realWorld.isSideSolid(pos, side, _default);
@@ -2890,7 +2863,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public ImmutableSetMultimap<ChunkPos, Ticket> getPersistentChunks() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getPersistentChunks();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getPersistentChunks();
@@ -2901,7 +2874,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public Iterator<Chunk> getPersistentChunkIterable(Iterator<Chunk> chunkIterator) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getPersistentChunkIterable(chunkIterator);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getPersistentChunkIterable(chunkIterator);
@@ -2912,7 +2885,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public int getBlockLightOpacity(BlockPos pos) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getBlockLightOpacity(pos);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getBlockLightOpacity(pos);
@@ -2923,7 +2896,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public int countEntities(EnumCreatureType type, boolean forSpawnCount) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.countEntities(type, forSpawnCount);
 		} else if (m_realWorld != null) {
 			return m_realWorld.countEntities(type, forSpawnCount);
@@ -2934,7 +2907,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean hasCapability(Capability<?> capability, EnumFacing facing) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.hasCapability(capability, facing);
 		} else if (m_realWorld != null) {
 			return m_realWorld.hasCapability(capability, facing);
@@ -2945,7 +2918,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public <T> T getCapability(Capability<T> capability, EnumFacing facing) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getCapability(capability, facing);
 		} else if (m_realWorld != null) {
 			return m_realWorld.getCapability(capability, facing);
@@ -2956,7 +2929,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public MapStorage getPerWorldStorage() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getPerWorldStorage();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getPerWorldStorage();
@@ -2967,7 +2940,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public void sendPacketToServer(Packet<?> packetIn) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			m_proxyWorld.sendPacketToServer(packetIn);
 		} else if (m_realWorld != null) {
 			m_realWorld.sendPacketToServer(packetIn);
@@ -2978,7 +2951,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public LootTableManager getLootTableManager() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.getLootTableManager();
 		} else if (m_realWorld != null) {
 			return m_realWorld.getLootTableManager();
@@ -2989,7 +2962,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public BlockPos findNearestStructure(String p_190528_1_, BlockPos p_190528_2_, boolean p_190528_3_) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.findNearestStructure(p_190528_1_, p_190528_2_, p_190528_3_);
 		} else if (m_realWorld != null) {
 			return m_realWorld.findNearestStructure(p_190528_1_, p_190528_2_, p_190528_3_);
@@ -3000,7 +2973,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public boolean equals(Object obj) {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.equals(obj);
 		} else if (m_realWorld != null) {
 			return m_realWorld.equals(obj);
@@ -3011,7 +2984,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public int hashCode() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.hashCode();
 		} else if (m_realWorld != null) {
 			return m_realWorld.hashCode();
@@ -3022,7 +2995,7 @@ public class WorldServerProxy extends WorldServer {
 
 	@Override
 	public String toString() {
-		if (m_proxyWorld != null && isPrefixInCallStack()) {
+		if (m_proxyWorld != null && Util.isPrefixInCallStack(m_modPrefix)) {
 			return m_proxyWorld.toString();
 		} else if (m_realWorld != null) {
 			return m_realWorld.toString();

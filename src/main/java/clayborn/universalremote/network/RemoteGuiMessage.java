@@ -4,6 +4,8 @@ import java.io.IOException;
 
 import org.apache.commons.lang3.reflect.ConstructorUtils;
 
+import clayborn.universalremote.items.ItemUniversalRemote;
+import clayborn.universalremote.items.ItemUniversalRemote.ItemUniversalRemoteNBTParser;
 import clayborn.universalremote.util.Util;
 import clayborn.universalremote.world.RemoteGuiEnabledClientWorld;
 import io.netty.buffer.ByteBuf;
@@ -22,7 +24,7 @@ import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
-public class OpenRemoteGuiMessage implements IMessage {
+public class RemoteGuiMessage implements IMessage {
 
 	public static class OpenGuiFactory
 	{
@@ -40,12 +42,12 @@ public class OpenRemoteGuiMessage implements IMessage {
 	// The params of the IMessageHandler are <REQ, REPLY>
 	// This means that the first param is the packet you are receiving, and the second is the packet you are returning.
 	// The returned packet can be used as a "response" from a sent packet.
-	public static class OpenRemoteGuiMessageHandler implements IMessageHandler<OpenRemoteGuiMessage, IMessage> {
+	public static class RemoteGuiMessageHandler implements IMessageHandler<RemoteGuiMessage, IMessage> {
 
 		// Do note that the default constructor is required, but implicitly defined in this case
 
 		@SideOnly(Side.CLIENT)
-		@Override public IMessage onMessage(OpenRemoteGuiMessage message, MessageContext ctx) {
+		@Override public IMessage onMessage(RemoteGuiMessage message, MessageContext ctx) {
 
 			if (ctx.side == Side.CLIENT)
 			{
@@ -68,18 +70,32 @@ public class OpenRemoteGuiMessage implements IMessage {
 				        	Util.logger.error("Client world is not instance of RemoteGuiEnabledClientWorld!");
 				        }
 
-				        player.openGui(
-				        		msg.getModId(),
-				        		msg.getModGuiId(),
-				        		player.world,
-				        		x,
-				        		y,
-				        		z);
+				        // WindowId of -1 means this was just a prepare message not a OpenGui replacement
+				        if (msg.getWindowId() >= 0)
+				        {
 
-				        player.openContainer.windowId = msg.getWindowId();
+					        player.openGui(
+					        		msg.getModId(),
+					        		msg.getModGuiId(),
+					        		player.world,
+					        		x,
+					        		y,
+					        		z);
+
+					        player.openContainer.windowId = msg.getWindowId();
+
+				        } else {
+				        	// This is a "prepare" message before server side activation
+
+				        	NBTTagCompound remoteTag = message.getRemoteTag();
+				        	ItemUniversalRemoteNBTParser myNBT = new ItemUniversalRemoteNBTParser(remoteTag);
+
+				        	ItemUniversalRemote.ActivateBlock(player, state, myNBT, player.world);
+
+				        }
 
 					} catch (Exception e) {
-						Util.logger.logException("Unable to process FMLMessage.OpenGui message!", e);
+						Util.logger.logException("Unable to process OpenRemoteGuiMessage!", e);
 					}
 
 				});
@@ -95,23 +111,26 @@ public class OpenRemoteGuiMessage implements IMessage {
 	private int m_blockId;
 	private NBTTagCompound m_updateTag;
 	private NBTTagCompound m_readTag;
+	private NBTTagCompound m_remoteTag;
 	private int m_dimensionId;
 
 	// A default constructor is always required
-	public OpenRemoteGuiMessage()
+	public RemoteGuiMessage()
 	{
 		m_guiMsg = new OpenGuiWrapper();
 		m_blockId = 0; //air
 		m_updateTag = null;
 		m_readTag = null;
+		m_remoteTag = null;
 		m_dimensionId = 0;
 	}
 
-	public OpenRemoteGuiMessage(OpenGui msg, int blockId, NBTTagCompound updateTag, NBTTagCompound readTag, int dimensionId) {
+	public RemoteGuiMessage(OpenGui msg, int blockId, NBTTagCompound updateTag, NBTTagCompound readTag, NBTTagCompound remoteTag, int dimensionId) {
 		m_guiMsg = new OpenGuiWrapper(msg);
 		m_blockId = blockId;
 		m_updateTag = updateTag;
 		m_readTag = readTag;
+		m_remoteTag = remoteTag;
 		m_dimensionId = dimensionId;
 	}
 
@@ -129,6 +148,10 @@ public class OpenRemoteGuiMessage implements IMessage {
 
 	public NBTTagCompound getReadTag() {
 		return m_readTag;
+	}
+
+	public NBTTagCompound getRemoteTag() {
+		return m_remoteTag;
 	}
 
 	public int getDimensionId() {
@@ -155,6 +178,13 @@ public class OpenRemoteGuiMessage implements IMessage {
 			Util.logger.logException("Unable to read OpenRemoteGuiMessage TE read/write NBT tag!", e);
 		}
 
+		try {
+			m_remoteTag = ibuf.readCompoundTag();
+		} catch (IOException e) {
+			Util.logger.logException("Unable to read OpenRemoteGuiMessage Universal Remote NBT tag!", e);
+		}
+
+
 		m_dimensionId = ibuf.readInt();
 
 	}
@@ -169,6 +199,7 @@ public class OpenRemoteGuiMessage implements IMessage {
 		ibuf.writeInt(m_blockId);
 		ibuf.writeCompoundTag(m_updateTag); // internally handles null
 		ibuf.writeCompoundTag(m_readTag); // internally handles null
+		ibuf.writeCompoundTag(m_remoteTag); // internally handles null
 		ibuf.writeInt(m_dimensionId);
 
 	}

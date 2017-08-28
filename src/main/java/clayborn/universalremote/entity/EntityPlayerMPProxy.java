@@ -10,6 +10,7 @@ import java.util.UUID;
 import com.mojang.authlib.GameProfile;
 
 import clayborn.universalremote.util.InjectionHandler;
+import net.minecraft.advancements.PlayerAdvancements;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.EnumPushReaction;
 import net.minecraft.block.material.Material;
@@ -32,6 +33,7 @@ import net.minecraft.entity.passive.AbstractHorse;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.entity.player.EnumPlayerModelParts;
+import net.minecraft.inventory.Container;
 import net.minecraft.inventory.EntityEquipmentSlot;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.inventory.InventoryEnderChest;
@@ -41,12 +43,15 @@ import net.minecraft.item.crafting.IRecipe;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.network.datasync.DataParameter;
 import net.minecraft.network.datasync.EntityDataManager;
+import net.minecraft.network.play.client.CPacketClientSettings;
 import net.minecraft.potion.Potion;
 import net.minecraft.potion.PotionEffect;
 import net.minecraft.scoreboard.Scoreboard;
 import net.minecraft.scoreboard.Team;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.stats.RecipeBookServer;
 import net.minecraft.stats.StatBase;
+import net.minecraft.stats.StatisticsManagerServer;
 import net.minecraft.tileentity.CommandBlockBaseLogic;
 import net.minecraft.tileentity.TileEntityCommandBlock;
 import net.minecraft.tileentity.TileEntitySign;
@@ -60,6 +65,7 @@ import net.minecraft.util.EnumHand;
 import net.minecraft.util.EnumHandSide;
 import net.minecraft.util.FoodStats;
 import net.minecraft.util.Mirror;
+import net.minecraft.util.NonNullList;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.Rotation;
 import net.minecraft.util.SoundCategory;
@@ -75,20 +81,22 @@ import net.minecraft.world.GameType;
 import net.minecraft.world.IInteractionObject;
 import net.minecraft.world.LockCode;
 import net.minecraft.world.World;
+import net.minecraft.world.WorldServer;
 import net.minecraftforge.common.capabilities.Capability;
 
-public class EntityPlayerProxy extends EntityPlayer  implements IEntityPlayerProxy {
+public class EntityPlayerMPProxy extends EntityPlayerMP implements IEntityPlayerProxy {
 
-	private EntityPlayer m_realPlayer;
+	private EntityPlayerMP m_realPlayer;
 
-	public EntityPlayerProxy(EntityPlayer realPlayer, double posX, double posY, double posZ, float pitch, float yaw)
+	//public EntityPlayerMP(MinecraftServer server, WorldServer worldIn, GameProfile profile, PlayerInteractionManager interactionManagerIn)
+	public EntityPlayerMPProxy(EntityPlayerMP realPlayer, double posX, double posY, double posZ, float pitch, float yaw)
 	{
-		super(realPlayer.world, realPlayer.getGameProfile());
+		super(realPlayer.mcServer, (WorldServer) realPlayer.world, realPlayer.getGameProfile(), realPlayer.interactionManager);
 
 //		this.inventory = realPlayer.inventory;
 //		this.inventoryContainer = realPlayer.inventoryContainer;
 
-		InjectionHandler.copyAllFieldsFrom(this, realPlayer, EntityPlayer.class);
+		InjectionHandler.copyAllFieldsFrom(this, realPlayer, EntityPlayerMP.class);
 
 		this.posX = posX;
 		this.posY = posY;
@@ -150,6 +158,330 @@ public class EntityPlayerProxy extends EntityPlayer  implements IEntityPlayerPro
 
 	// NOTE: the if m_realPlayer == null in each function is to handle the case
 	// where the super constructor calls this member function during object construction
+
+	@Override
+	public void addSelfToInternalCraftingInventory() {
+		if(m_realPlayer != null) {
+			m_realPlayer.addSelfToInternalCraftingInventory();
+		} else {
+			super.addSelfToInternalCraftingInventory();
+		}
+	}
+
+	@Override
+	public void onUpdateEntity() {
+		if(m_realPlayer != null) {
+			m_realPlayer.onUpdateEntity();
+		} else {
+			super.onUpdateEntity();
+		}
+	}
+
+	@Override
+	public void handleFalling(double y, boolean onGroundIn) {
+		if(m_realPlayer != null) {
+			m_realPlayer.handleFalling(y, onGroundIn);
+		} else {
+			super.handleFalling(y, onGroundIn);
+		}
+	}
+
+	@Override
+	public void getNextWindowId() {
+		if(m_realPlayer != null) {
+			m_realPlayer.getNextWindowId();
+		} else {
+			super.getNextWindowId();
+		}
+	}
+
+	@Override
+	public void sendSlotContents(Container containerToSend, int slotInd, ItemStack stack) {
+		if(m_realPlayer != null) {
+			m_realPlayer.sendSlotContents(containerToSend, slotInd, stack);
+		} else {
+			super.sendSlotContents(containerToSend, slotInd, stack);
+		}
+	}
+
+	@Override
+	public void sendContainerToPlayer(Container containerIn) {
+		if(m_realPlayer != null) {
+			m_realPlayer.sendContainerToPlayer(containerIn);
+		} else {
+			super.sendContainerToPlayer(containerIn);
+		}
+	}
+
+	@Override
+	public void sendAllContents(Container containerToSend, NonNullList<ItemStack> itemsList) {
+		if(m_realPlayer != null) {
+			m_realPlayer.sendAllContents(containerToSend, itemsList);
+		} else {
+			super.sendAllContents(containerToSend, itemsList);
+		}
+	}
+
+	@Override
+	public void sendWindowProperty(Container containerIn, int varToUpdate, int newValue) {
+		if(m_realPlayer != null) {
+			m_realPlayer.sendWindowProperty(containerIn, varToUpdate, newValue);
+		} else {
+			super.sendWindowProperty(containerIn, varToUpdate, newValue);
+		}
+	}
+
+	@Override
+	public void sendAllWindowProperties(Container containerIn, IInventory inventory) {
+		if(m_realPlayer != null) {
+			m_realPlayer.sendAllWindowProperties(containerIn, inventory);
+		} else {
+			super.sendAllWindowProperties(containerIn, inventory);
+		}
+	}
+
+	@Override
+	public void updateHeldItem() {
+		if(m_realPlayer != null) {
+			m_realPlayer.updateHeldItem();
+		} else {
+			super.updateHeldItem();
+		}
+	}
+
+	@Override
+	public void closeContainer() {
+		if(m_realPlayer != null) {
+			m_realPlayer.closeContainer();
+		} else {
+			super.closeContainer();
+		}
+	}
+
+	@Override
+	public void setEntityActionState(float strafe, float forward, boolean jumping, boolean sneaking) {
+		if(m_realPlayer != null) {
+			m_realPlayer.setEntityActionState(strafe, forward, jumping, sneaking);
+		} else {
+			super.setEntityActionState(strafe, forward, jumping, sneaking);
+		}
+	}
+
+	@Override
+	public void mountEntityAndWakeUp() {
+		if(m_realPlayer != null) {
+			m_realPlayer.mountEntityAndWakeUp();
+		} else {
+			super.mountEntityAndWakeUp();
+		}
+	}
+
+	@Override
+	public boolean hasDisconnected() {
+		if(m_realPlayer != null) {
+			return m_realPlayer.hasDisconnected();
+		} else {
+			return super.hasDisconnected();
+		}
+	}
+
+	@Override
+	public void setPlayerHealthUpdated() {
+		if(m_realPlayer != null) {
+			m_realPlayer.setPlayerHealthUpdated();
+		} else {
+			super.setPlayerHealthUpdated();
+		}
+	}
+
+	@Override
+	public void copyFrom(EntityPlayerMP that, boolean p_193104_2_) {
+		if(m_realPlayer != null) {
+			m_realPlayer.copyFrom(that, p_193104_2_);
+		} else {
+			super.copyFrom(that, p_193104_2_);
+		}
+	}
+
+	@Override
+	public WorldServer getServerWorld() {
+		if(m_realPlayer != null) {
+			return m_realPlayer.getServerWorld();
+		} else {
+			return super.getServerWorld();
+		}
+	}
+
+	@Override
+	public String getPlayerIP() {
+		if(m_realPlayer != null) {
+			return m_realPlayer.getPlayerIP();
+		} else {
+			return super.getPlayerIP();
+		}
+	}
+
+	@Override
+	public void handleClientSettings(CPacketClientSettings packetIn) {
+		if(m_realPlayer != null) {
+			m_realPlayer.handleClientSettings(packetIn);
+		} else {
+			super.handleClientSettings(packetIn);
+		}
+	}
+
+	@Override
+	public EnumChatVisibility getChatVisibility() {
+		if(m_realPlayer != null) {
+			return m_realPlayer.getChatVisibility();
+		} else {
+			return super.getChatVisibility();
+		}
+	}
+
+	@Override
+	public void loadResourcePack(String url, String hash) {
+		if(m_realPlayer != null) {
+			m_realPlayer.loadResourcePack(url, hash);
+		} else {
+			super.loadResourcePack(url, hash);
+		}
+	}
+
+	@Override
+	public void markPlayerActive() {
+		if(m_realPlayer != null) {
+			m_realPlayer.markPlayerActive();
+		} else {
+			super.markPlayerActive();
+		}
+	}
+
+	@Override
+	public StatisticsManagerServer getStatFile() {
+		if(m_realPlayer != null) {
+			return m_realPlayer.getStatFile();
+		} else {
+			return super.getStatFile();
+		}
+	}
+
+	@Override
+	public RecipeBookServer getRecipeBook() {
+		if(m_realPlayer != null) {
+			return m_realPlayer.getRecipeBook();
+		} else {
+			return super.getRecipeBook();
+		}
+	}
+
+	@Override
+	public void removeEntity(Entity entityIn) {
+		if(m_realPlayer != null) {
+			m_realPlayer.removeEntity(entityIn);
+		} else {
+			super.removeEntity(entityIn);
+		}
+	}
+
+	@Override
+	public void addEntity(Entity entityIn) {
+		if(m_realPlayer != null) {
+			m_realPlayer.addEntity(entityIn);
+		} else {
+			super.addEntity(entityIn);
+		}
+	}
+
+	@Override
+	public Entity getSpectatingEntity() {
+		if(m_realPlayer != null) {
+			return m_realPlayer.getSpectatingEntity();
+		} else {
+			return super.getSpectatingEntity();
+		}
+	}
+
+	@Override
+	public void setSpectatingEntity(Entity entityToSpectate) {
+		if(m_realPlayer != null) {
+			m_realPlayer.setSpectatingEntity(entityToSpectate);
+		} else {
+			super.setSpectatingEntity(entityToSpectate);
+		}
+	}
+
+	@Override
+	public long getLastActiveTime() {
+		if(m_realPlayer != null) {
+			return m_realPlayer.getLastActiveTime();
+		} else {
+			return super.getLastActiveTime();
+		}
+	}
+
+	@Override
+	public ITextComponent getTabListDisplayName() {
+		if(m_realPlayer != null) {
+			return m_realPlayer.getTabListDisplayName();
+		} else {
+			return super.getTabListDisplayName();
+		}
+	}
+
+	@Override
+	public boolean isInvulnerableDimensionChange() {
+		if(m_realPlayer != null) {
+			return m_realPlayer.isInvulnerableDimensionChange();
+		} else {
+			return super.isInvulnerableDimensionChange();
+		}
+	}
+
+	@Override
+	public void clearInvulnerableDimensionChange() {
+		if(m_realPlayer != null) {
+			m_realPlayer.clearInvulnerableDimensionChange();
+		} else {
+			super.clearInvulnerableDimensionChange();
+		}
+	}
+
+	@Override
+	public void setElytraFlying() {
+		if(m_realPlayer != null) {
+			m_realPlayer.setElytraFlying();
+		} else {
+			super.setElytraFlying();
+		}
+	}
+
+	@Override
+	public void clearElytraFlying() {
+		if(m_realPlayer != null) {
+			m_realPlayer.clearElytraFlying();
+		} else {
+			super.clearElytraFlying();
+		}
+	}
+
+	@Override
+	public PlayerAdvancements getAdvancements() {
+		if(m_realPlayer != null) {
+			return m_realPlayer.getAdvancements();
+		} else {
+			return super.getAdvancements();
+		}
+	}
+
+	@Override
+	public Vec3d getEnteredNetherPosition() {
+		if(m_realPlayer != null) {
+			return m_realPlayer.getEnteredNetherPosition();
+		} else {
+			return super.getEnteredNetherPosition();
+		}
+	}
 
 	@Override
 	public World getEntityWorld() {

@@ -14,3 +14,5 @@ universalremote.strings.crossdimerror=The bound block is in another dimension.
 universalremote.version.update_available=Version %s is now available
 universalremote.version.download=Download
 universalremote.version.click_to_download=Click to download
+universalremote.strings.configtitle=Universal Remote Configuration
+universalremote.strings.blockblacklist=The target block is blacklisted.

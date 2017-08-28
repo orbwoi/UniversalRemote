@@ -64,7 +64,7 @@ public class ContainerProxy extends Container {
 		} else {
 
 			// call the sync event!
-			PlayerWorldSyncServer.INSTANCE.onWindowClose(playerIn);
+			PlayerWorldSyncServer.INSTANCE.resyncIfNeeded(playerIn);
 
 			// trigger default event
 			m_realContainer.onContainerClosed(playerIn);
@@ -83,20 +83,20 @@ public class ContainerProxy extends Container {
 	}
 
 	@Override
-	public NonNullList<ItemStack> getInventory() {
-		if (m_realContainer == null) {
-			return super.getInventory();
-		} else {
-			return m_realContainer.getInventory();
-		}
-	}
-
-	@Override
 	public void removeListener(IContainerListener listener) {
 		if (m_realContainer == null) {
 			super.removeListener(listener);
 		} else {
 			m_realContainer.removeListener(listener);
+		}
+	}
+
+	@Override
+	public NonNullList<ItemStack> getInventory() {
+		if (m_realContainer == null) {
+			return super.getInventory();
+		} else {
+			return m_realContainer.getInventory();
 		}
 	}
 
