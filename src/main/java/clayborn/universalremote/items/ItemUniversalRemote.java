@@ -502,12 +502,14 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 			activatePlayer = player;
 		}
 
+		Container oldContainer = player.openContainer;
+
 		state.getBlock().
  			onBlockActivated(world, myNBT.getBlockPosition(), state, activatePlayer,
 					myNBT.getHand(), myNBT.getFacing(), myNBT.getHitX(), myNBT.getHitY(), myNBT.getHitZ());
 
 		// make sure any property sets are copied over to the real player
-		if (activatePlayer != player)
+		if (activatePlayer != player && activatePlayer.openContainer != oldContainer  )
 		{
 	    	player.openContainer = activatePlayer.openContainer;
 		}
