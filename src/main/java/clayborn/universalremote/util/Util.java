@@ -1,9 +1,12 @@
 package clayborn.universalremote.util;
 
+import clayborn.universalremote.registrar.Registrar;
+import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.inventory.EntityEquipmentSlot;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumHand;
+import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.common.DimensionManager;
 
 public class Util {
@@ -117,6 +120,12 @@ public class Util {
 
 		return false;
 
+	}
+
+	public static String getBlockModId(Block block) {
+		// find the modId of the block
+		ResourceLocation loc = Registrar.BLOCK_REGISTRY.getKey(block);
+		return loc.getResourceDomain();
 	}
 
 }

@@ -36,6 +36,7 @@ import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.NonNullList;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.text.TextFormatting;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
@@ -279,6 +280,8 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 			}
 
 			// fully powered version
+			if (UniversalRemoteConfiguration.fuel.fuelType.equals(UniversalRemoteConfiguration.FuelType.Energy.toString()) &&
+	    			UniversalRemoteConfiguration.fuel.energy.energyCapacity > 0)
 			{
 				ItemStack stack = new ItemStack(ItemRegistry.Items().UniveralRemote);
 
@@ -514,7 +517,7 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 	    	player.openContainer = activatePlayer.openContainer;
 		}
 
-		return fakePlayer;
+		return activatePlayer;
     }
 
 	/**
@@ -586,7 +589,7 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 				    			if (!test.startsWith("net.minecraft"))
 				    			{
 				    				// prepare for remote activation!
-				    				PlayerRemoteGuiDataManagerServer.INSTANCE.PrepareForRemoteActivation(world, (EntityPlayerMP) player, myNBT.getBlockPosition());
+				    				PlayerRemoteGuiDataManagerServer.INSTANCE.PrepareForRemoteActivation(world, (EntityPlayerMP) player, myNBT.getBlockPosition(), new Vec3d(myNBT.getPlayerX(), myNBT.getPlayerY(), myNBT.getPlayerZ()));
 
 				    				// Send the pre-activation trigger and config packet!
 				    				PlayerRemoteGuiDataManagerServer.INSTANCE.SendPreparePacket(player, myNBT.getTag());
@@ -612,6 +615,8 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 								// then we need to try again!
 								while (PlayerRemoteGuiDataManagerServer.INSTANCE.IsRetryNeeded(player))
 								{
+									Util.logger.info("Retrying OpenGui..");
+
 									// note: count of tries kept in RemoteGuiPlayerData
 									PlayerRemoteGuiDataManagerServer.INSTANCE.Retry(player);
 								}

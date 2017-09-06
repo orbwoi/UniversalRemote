@@ -6,16 +6,16 @@ import java.util.Map;
 import clayborn.universalremote.network.OpenGuiWrapper;
 import clayborn.universalremote.network.RemoteGuiMessage;
 import clayborn.universalremote.network.RemoteGuiNetworkManager;
-import clayborn.universalremote.registrar.Registrar;
 import clayborn.universalremote.util.Util;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.inventory.Container;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
 import net.minecraftforge.common.DimensionManager;
@@ -34,6 +34,7 @@ public class PlayerRemoteGuiDataManagerServer {
 		public NBTTagCompound updateTag;
 		public NBTTagCompound readTag;
 		public int x, y, z;
+		public Vec3d playerPos;
 		public String modId;
 		public int dimensionId;
 
@@ -44,7 +45,7 @@ public class PlayerRemoteGuiDataManagerServer {
 
 		public RemoteGuiPlayerData() { }
 
-		public RemoteGuiPlayerData(int iBlockId, NBTTagCompound iUpdateTag, NBTTagCompound iReadTag, BlockPos pos, String iModId, int iDimensionId)
+		public RemoteGuiPlayerData(int iBlockId, NBTTagCompound iUpdateTag, NBTTagCompound iReadTag, BlockPos pos, String iModId, int iDimensionId, Vec3d iPlayerPos)
 		{
 			// data to send to client
 			blockId = iBlockId;
@@ -57,8 +58,13 @@ public class PlayerRemoteGuiDataManagerServer {
 			z = pos.getZ();
 			modId = iModId;
 			dimensionId = iDimensionId;
-
+			playerPos = iPlayerPos;
 		}
+	}
+
+	public void setPlayerData(EntityPlayer player, RemoteGuiPlayerData data)
+	{
+		m_playerData.put(player, data);
 	}
 
 	public RemoteGuiPlayerData getPlayerData(EntityPlayer player)
@@ -66,7 +72,7 @@ public class PlayerRemoteGuiDataManagerServer {
 		return m_playerData.get(player);
 	}
 
-	public void PrepareForRemoteActivation(WorldServer world, EntityPlayerMP player, BlockPos blockPosition)
+	public void PrepareForRemoteActivation(WorldServer world, EntityPlayerMP player, BlockPos blockPosition, Vec3d playerPos)
 	{
 
     	IBlockState state = world.getBlockState(blockPosition);
@@ -84,15 +90,13 @@ public class PlayerRemoteGuiDataManagerServer {
 			tile.writeToNBT(tileReadTag = new NBTTagCompound());
 		}
 
-		// find the modId of the block
-		ResourceLocation loc = Registrar.BLOCK_REGISTRY.getKey(state.getBlock());
-		String modId = loc.getResourceDomain();
+		String modId = Util.getBlockModId(state.getBlock());
 
 		// make sure any old entries are properly cleaned up
 		CancelRemoteActivation(player);
 
 		m_playerData.put(player,
-				new RemoteGuiPlayerData(id, tileUpdateTag, tileReadTag, blockPosition, modId, world.provider.getDimension()));
+				new RemoteGuiPlayerData(id, tileUpdateTag, tileReadTag, blockPosition, modId, world.provider.getDimension(), playerPos));
 
 	}
 
@@ -137,8 +141,20 @@ public class PlayerRemoteGuiDataManagerServer {
 
 	    	World world = DimensionManager.getWorld(data.dimensionId);
 
+	    	Container oldContainer = player.openContainer;
+
 	    	// activate!
 	    	player.openGui(data.modId, data.modGuiId, world, data.x, data.y, data.z);
+
+	    	// did anything get opened?
+	    	if (player.openContainer == oldContainer)
+	    	{
+	    		Util.logger.warn("Re-try did not open a container!");
+
+	    		// nothing opened, we need to abort!
+	    		m_playerData.put(player, null);
+
+	    	}
 
     	}
     	else

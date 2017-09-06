@@ -42,9 +42,16 @@ public class OpenGuiFilterServer extends ChannelOutboundHandlerAdapter {
     {
     	return
 			packet.getModId().equals(data.modId) &&
-			packet.getX() == data.x &&
+
+			// it should match the tile...
+			(packet.getX() == data.x &&
 			packet.getY() == data.y &&
-			packet.getZ() == data.z;
+			packet.getZ() == data.z) ||
+
+			// or the player!
+			(packet.getX() == (int)data.playerPos.x &&
+			packet.getY() == (int)data.playerPos.y &&
+			packet.getZ() == (int)data.playerPos.z);
     }
 
     @Override
@@ -93,17 +100,28 @@ public class OpenGuiFilterServer extends ChannelOutboundHandlerAdapter {
 
 	            			 }
 
+	            			 // Refresh our data to see if something changed
+	            			 data = PlayerRemoteGuiDataManagerServer.INSTANCE.getPlayerData(entityPlayerMP);
+
+		            		 // if we aren't re-reoute clear the data!
+		            		 if (!data.rerouted)
+		            		 {
+			            		 // the player opened something, clear the data
+		            			 PlayerRemoteGuiDataManagerServer.INSTANCE.CancelRemoteActivation(entityPlayerMP);
+		            		 }
+
+            			 } else {
+
+            				 Util.logger.warn("Ran out of re-tries attempting to covert OpenGui to RemoteGuiMessage!");
+
+            				 // clear the data since we are giving up...
+	            			 PlayerRemoteGuiDataManagerServer.INSTANCE.CancelRemoteActivation(entityPlayerMP);
+
+            				 // we got stuck in a loop, send to native...
+	            			 sendToForge = true;
+
             			 }
 
-            			 // Refresh our data to see if something changed
-            			 data = PlayerRemoteGuiDataManagerServer.INSTANCE.getPlayerData(entityPlayerMP);
-
-	            		 // if we aren't re-reoute clear the data!
-	            		 if (!data.rerouted)
-	            		 {
-		            		 // the player opened something, clear the data
-	            			 PlayerRemoteGuiDataManagerServer.INSTANCE.CancelRemoteActivation(entityPlayerMP);
-	            		 }
 
 	            	 }
 
@@ -129,27 +147,47 @@ public class OpenGuiFilterServer extends ChannelOutboundHandlerAdapter {
 
     	WorldServer world = DimensionManager.getWorld(data.dimensionId);
 
-    	int x, y, z;
-
     	try {
 
-	    	x = msg.getX();
-	    	y = msg.getY();
-	    	z = msg.getZ();
 
-	    	int count = data.count;
+	    	int x = msg.getX();
+	    	int y = msg.getY();
+	    	int z = msg.getZ();
 
-	    	// find the real block
-	    	PlayerRemoteGuiDataManagerServer.INSTANCE.PrepareForRemoteActivation(world, player, new BlockPos(x, y, z));
+    		BlockPos newPos = new BlockPos(x, y, z);
+    		String newModId = Util.getBlockModId(world.getBlockState(newPos).getBlock());
 
-	    	RemoteGuiPlayerData newdata = PlayerRemoteGuiDataManagerServer.INSTANCE.getPlayerData(player);
+	    	// are we on the same mod?
+	    	if (!data.modId.equals(newModId))
+	    	{
+	    		Util.logger.warn("ModId changed from {} to {} in re-try!", data.modId, newModId);
 
-	    	// set count > 0 to prevent recursion!
-	    	newdata.count = count + 1;
+	    		// uh ho, it's a different mod - use native GUI
+	    		data.count = Integer.MAX_VALUE;
+	    		data.rerouted = true;
 
-	    	// remember the alamo!
-	    	newdata.modGuiId = msg.getModGuiId();
-	    	newdata.rerouted = true;
+	    		PlayerRemoteGuiDataManagerServer.INSTANCE.setPlayerData(player, data);
+
+	    	}
+	    	else
+	    	{
+
+		    	// find the real block
+		    	PlayerRemoteGuiDataManagerServer.INSTANCE.PrepareForRemoteActivation(world, player, newPos, data.playerPos);
+
+		    	RemoteGuiPlayerData newdata = PlayerRemoteGuiDataManagerServer.INSTANCE.getPlayerData(player);
+
+		    	if (data.count < Integer.MAX_VALUE)
+		    	{
+			    	// set count > 0 to prevent recursion!
+			    	newdata.count = data.count + 1;
+		    	}
+
+		    	// remember the alamo!
+		    	newdata.modGuiId = msg.getModGuiId();
+		    	newdata.rerouted = true;
+
+	    	}
 
 
 		} catch (IllegalAccessException e) {
@@ -171,6 +209,7 @@ public class OpenGuiFilterServer extends ChannelOutboundHandlerAdapter {
 
         if (!scheduler.isCallingFromMinecraftThread())
         {
+        	Util.logger.warn("HandleDataMismatch scheduling PrepareReissueRequest!");
             scheduler.addScheduledTask(new Runnable()
             {
                 @Override

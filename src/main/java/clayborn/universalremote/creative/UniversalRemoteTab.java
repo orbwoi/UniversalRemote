@@ -23,7 +23,12 @@ public class UniversalRemoteTab extends CreativeTabs {
 
         // fill up the energy for the photo
         ItemNBTEnergyStorage storage = (ItemNBTEnergyStorage) CapabilityHelper.tryGetCapability(stack, CapabilityEnergy.ENERGY, null);
-        storage.setEnergyStored(storage.getMaxEnergyStored());
+
+        // energy might be disabled!
+        if (storage != null)
+        {
+        	storage.setEnergyStored(storage.getMaxEnergyStored());
+        }
 
 		return stack;
 	}
