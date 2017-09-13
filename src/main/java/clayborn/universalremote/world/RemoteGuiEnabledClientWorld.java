@@ -21,14 +21,23 @@ public class RemoteGuiEnabledClientWorld extends WorldClient {
 	private IBlockState m_state;
 	private String m_modPrefix;
 
+	private void SetupWorldProviderProxy() throws IllegalAccessException
+	{
+		// did somebody else proxy the provider??
+		if (!(this.provider instanceof WorldProviderProxyClient))
+		{
+				InjectionHandler.writeFieldOfType(
+						this,
+						new WorldProviderProxyClient(this.provider),
+						WorldProvider.class);
+		}
+	}
+
 	public RemoteGuiEnabledClientWorld(NetHandlerPlayClient netHandler, WorldSettings settings, int dimension,
 			EnumDifficulty difficulty, Profiler profilerIn) throws IllegalAccessException {
 		super(netHandler, settings, dimension, difficulty, profilerIn);
 
-		InjectionHandler.writeFieldOfType(
-				this,
-				new WorldProviderProxyClient(this.provider),
-				WorldProvider.class);
+		SetupWorldProviderProxy();
 	}
 
 	public void SetRemoteGui(IBlockState state, NBTTagCompound updateTag, NBTTagCompound readTag, int x, int y, int z, int dim)
@@ -42,7 +51,14 @@ public class RemoteGuiEnabledClientWorld extends WorldClient {
 
 		m_modPrefix = Util.getClassDomainFromName(state.getBlock().getClass().getName());
 
-        ((WorldProviderProxyClient)this.provider).setData(dim, m_modPrefix);
+		// somebody else may have add their own proxy!
+		try {
+			SetupWorldProviderProxy();
+
+	        ((WorldProviderProxyClient)this.provider).setData(dim, m_modPrefix);
+		} catch (IllegalAccessException e) {
+			Util.logger.logException("Unable to configure WorldProviderProxy!",e);
+		}
 
         if (state.getBlock().hasTileEntity(state)) {
         	m_tile = state.getBlock().createTileEntity(this, state);
@@ -67,7 +83,15 @@ public class RemoteGuiEnabledClientWorld extends WorldClient {
 		m_tile = null;
 		m_modPrefix = null;
 
-		((WorldProviderProxyClient)this.provider).clearData();
+		// somebody else may have add their own proxy!
+		try {
+			SetupWorldProviderProxy();
+
+			((WorldProviderProxyClient)this.provider).clearData();
+		} catch (IllegalAccessException e) {
+			Util.logger.logException("Unable to configure WorldProviderProxy!",e);
+		}
+
 	}
 
 	/* Modified Functions */

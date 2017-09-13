@@ -93,6 +93,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP implements IEntityPlayer
 	{
 		super(realPlayer.mcServer, (WorldServer) realPlayer.world, realPlayer.getGameProfile(), realPlayer.interactionManager);
 
+		// yeah we don't really want to inject into the interactionManager..
+		realPlayer.interactionManager.player = realPlayer;
+
 //		this.inventory = realPlayer.inventory;
 //		this.inventoryContainer = realPlayer.inventoryContainer;
 
