@@ -76,13 +76,26 @@ public class MinecraftProxy extends Minecraft {
 			}
 		}
 
-		InjectionHandler.copyAllFieldsFrom(m_realMinecraft, this, Minecraft.class);
+		// sync the player if needed
+		if (this.player != null)
+		{
+			try {
+
+				// Fix the player internal mc refernce
+				InjectionHandler.writeFieldOfType(this.player, m_realMinecraft, Minecraft.class);
+
+			} catch (IllegalAccessException e) {
+				Util.logger.logException("Unable to set player.mc!", e);
+			}
+		}
+
+		InjectionHandler.copyAllFieldsFromEx(m_realMinecraft, this, Minecraft.class);
 
 	}
 
 	public void SyncFromReal()
 	{
-		InjectionHandler.copyAllFieldsFrom(this, m_realMinecraft, Minecraft.class);
+		InjectionHandler.copyAllFieldsFromEx(this, m_realMinecraft, Minecraft.class);
 	}
 
 }

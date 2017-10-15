@@ -168,4 +168,23 @@ public class InjectionHandler {
 		}
 	}
 
+	// also copy final fields
+	public static <T> void copyAllFieldsFromEx(T dest, T origin, Class<T> c)
+	{
+		for (Field f : FieldUtils.getAllFields(c))
+		{
+			if (!Modifier.isStatic(f.getModifiers()))
+			{
+				try {
+					FieldUtils.writeField(f, dest, FieldUtils.readField(f, origin, true), true);
+				} catch (IllegalAccessException e) {
+					Util.logger.info("Unable to force copy field {} of {}.", f.getName(), dest.getClass().getName());
+				} catch (Exception e) {
+					String s = String.format("Error trying to force copy field %s of %s!", f.getName(), dest.getClass().getName());
+					Util.logger.logException(s, e);
+				}
+			}
+		}
+	}
+
 }

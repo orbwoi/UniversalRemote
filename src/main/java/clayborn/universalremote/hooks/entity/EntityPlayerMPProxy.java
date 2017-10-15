@@ -103,6 +103,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		this.posZ = posZ;
 		this.rotationPitch = pitch;
 		this.rotationYaw = yaw;
+		this.rotationYawHead = yaw;
 
 		m_realPlayer = realPlayer;
 	}
@@ -152,6 +153,11 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public double getDistance(double x, double y, double z) {
 		return super.getDistance(x, y, z);
+	}
+
+	@Override
+	public Vec3d getLook(float partialTicks) {
+		return super.getLook(partialTicks);
 	}
 
 	/* Proxy Functions */
@@ -2166,15 +2172,6 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 			return super.canEntityBeSeen(entityIn);
 		} else {
 			return m_realPlayer.canEntityBeSeen(entityIn);
-		}
-	}
-
-	@Override
-	public Vec3d getLook(float partialTicks) {
-		if (m_realPlayer == null) {
-			return super.getLook(partialTicks);
-		} else {
-			return m_realPlayer.getLook(partialTicks);
 		}
 	}
 

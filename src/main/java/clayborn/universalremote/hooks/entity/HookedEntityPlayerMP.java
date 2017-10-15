@@ -7,6 +7,7 @@ import java.util.Set;
 import com.mojang.authlib.GameProfile;
 
 import clayborn.universalremote.hooks.world.WorldServerProxy;
+import clayborn.universalremote.util.InjectionHandler;
 import clayborn.universalremote.util.Util;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
@@ -14,6 +15,7 @@ import net.minecraft.server.management.PlayerInteractionManager;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
+import net.minecraftforge.common.capabilities.CapabilityDispatcher;
 
 public class HookedEntityPlayerMP extends EntityPlayerMP {
 
@@ -40,6 +42,38 @@ public class HookedEntityPlayerMP extends EntityPlayerMP {
 		new HashSet<String>(Arrays.asList(
     	     new String[] {"net.minecraft"}
     	));
+
+    public static HookedEntityPlayerMP CreateFromExisting(EntityPlayerMP original)
+    {
+		HookedEntityPlayerMP returnedPlayer = new HookedEntityPlayerMP(original.mcServer, (WorldServer) original.world, original.getGameProfile(), original.interactionManager);
+
+		CapabilityDispatcher caps = null;
+
+		// backup the player capabilities
+		try {
+			caps = InjectionHandler.readFieldOfType(returnedPlayer, CapabilityDispatcher.class);
+		} catch (IllegalAccessException e) {
+			Util.logger.logException("Unable to capture CapabilityDispatcher from created player.", e);
+		}
+
+		InjectionHandler.copyAllFieldsFromEx(returnedPlayer, original, EntityPlayerMP.class);
+
+		// fix dependent references
+		returnedPlayer.interactionManager.player = returnedPlayer;
+		returnedPlayer.inventory.player = returnedPlayer;
+
+		// write player capabilities
+		if (caps != null)
+		{
+			try {
+				InjectionHandler.writeFieldOfType(returnedPlayer, caps, CapabilityDispatcher.class);
+			} catch (IllegalAccessException e) {
+				Util.logger.logException("Unable to write CapabilityDispatcher to new hooked player.", e);
+			}
+		}
+
+		return returnedPlayer;
+    }
 
 	public HookedEntityPlayerMP(MinecraftServer server, WorldServer worldIn, GameProfile profile,
 			PlayerInteractionManager interactionManagerIn) {
