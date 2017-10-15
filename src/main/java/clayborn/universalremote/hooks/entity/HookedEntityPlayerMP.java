@@ -1,5 +1,6 @@
 package clayborn.universalremote.hooks.entity;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -13,7 +14,6 @@ import net.minecraft.server.management.PlayerInteractionManager;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
-import scala.actors.threadpool.Arrays;
 
 public class HookedEntityPlayerMP extends EntityPlayerMP {
 
