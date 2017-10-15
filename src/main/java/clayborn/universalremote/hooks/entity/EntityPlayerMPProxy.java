@@ -1,4 +1,4 @@
-package clayborn.universalremote.entity;
+package clayborn.universalremote.hooks.entity;
 
 import java.util.Collection;
 import java.util.List;
@@ -84,7 +84,7 @@ import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
 import net.minecraftforge.common.capabilities.Capability;
 
-public class EntityPlayerMPProxy extends EntityPlayerMP implements IEntityPlayerProxy {
+public class EntityPlayerMPProxy extends EntityPlayerMP {
 
 	private EntityPlayerMP m_realPlayer;
 
@@ -95,9 +95,6 @@ public class EntityPlayerMPProxy extends EntityPlayerMP implements IEntityPlayer
 
 		// yeah we don't really want to inject into the interactionManager..
 		realPlayer.interactionManager.player = realPlayer;
-
-//		this.inventory = realPlayer.inventory;
-//		this.inventoryContainer = realPlayer.inventoryContainer;
 
 		InjectionHandler.copyAllFieldsFrom(this, realPlayer, EntityPlayerMP.class);
 
@@ -492,24 +489,6 @@ public class EntityPlayerMPProxy extends EntityPlayerMP implements IEntityPlayer
 			return super.getEntityWorld();
 		} else {
 			return m_realPlayer.getEntityWorld();
-		}
-	}
-
-	@Override
-	public double getDistanceSqToEntity(Entity entityIn) {
-		if (m_realPlayer == null) {
-			return super.getDistanceSqToEntity(entityIn);
-		} else {
-			return m_realPlayer.getDistanceSqToEntity(entityIn);
-		}
-	}
-
-	@Override
-	public float getDistanceToEntity(Entity entityIn) {
-		if (m_realPlayer == null) {
-			return super.getDistanceToEntity(entityIn);
-		} else {
-			return m_realPlayer.getDistanceToEntity(entityIn);
 		}
 	}
 

@@ -1,9 +1,9 @@
-package clayborn.universalremote.world;
+package clayborn.universalremote.hooks.events;
 
 import java.util.IdentityHashMap;
 import java.util.Map;
 
-import clayborn.universalremote.network.OpenGuiWrapper;
+import clayborn.universalremote.hooks.network.OpenGuiWrapper;
 import clayborn.universalremote.network.RemoteGuiMessage;
 import clayborn.universalremote.network.RemoteGuiNetworkManager;
 import clayborn.universalremote.util.Util;
@@ -100,7 +100,7 @@ public class PlayerRemoteGuiDataManagerServer {
 
 	}
 
-	public void SendPreparePacket(EntityPlayer player, NBTTagCompound remoteTag)
+	public void SendPreparePacket(WorldServer world, EntityPlayer player, NBTTagCompound remoteTag)
 	{
 		RemoteGuiPlayerData data = m_playerData.get(player);
 
@@ -110,7 +110,7 @@ public class PlayerRemoteGuiDataManagerServer {
 			OpenGuiWrapper wrap;
 			try {
 				wrap = new OpenGuiWrapper(-1, data.modId, -1, data.x, data.y, data.z);
-				RemoteGuiMessage msg = new RemoteGuiMessage(wrap, data.blockId, data.updateTag, data.readTag, remoteTag, player.world.provider.getDimension());
+				RemoteGuiMessage msg = new RemoteGuiMessage(wrap, data.blockId, data.updateTag, data.readTag, remoteTag, world.provider.getDimension());
 				RemoteGuiNetworkManager.INSTANCE.sendPacketToPlayer(msg, (EntityPlayerMP) player);
 			} catch (IllegalArgumentException | IllegalAccessException e) {
 				Util.logger.logException("Unable to send prepare OpenRemoteGuiMessage packet.", e);

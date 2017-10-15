@@ -1,4 +1,4 @@
-package clayborn.universalremote.entity;
+package clayborn.universalremote.hooks.entity;
 
 import java.util.Collection;
 import java.util.List;
@@ -77,16 +77,13 @@ import net.minecraft.world.LockCode;
 import net.minecraft.world.World;
 import net.minecraftforge.common.capabilities.Capability;
 
-public class EntityPlayerProxy extends EntityPlayer  implements IEntityPlayerProxy {
+public class EntityPlayerProxy extends EntityPlayer {
 
 	private EntityPlayer m_realPlayer;
 
 	public EntityPlayerProxy(EntityPlayer realPlayer, double posX, double posY, double posZ, float pitch, float yaw)
 	{
 		super(realPlayer.world, realPlayer.getGameProfile());
-
-//		this.inventory = realPlayer.inventory;
-//		this.inventoryContainer = realPlayer.inventoryContainer;
 
 		InjectionHandler.copyAllFieldsFrom(this, realPlayer, EntityPlayer.class);
 
@@ -157,24 +154,6 @@ public class EntityPlayerProxy extends EntityPlayer  implements IEntityPlayerPro
 			return super.getEntityWorld();
 		} else {
 			return m_realPlayer.getEntityWorld();
-		}
-	}
-
-	@Override
-	public double getDistanceSqToEntity(Entity entityIn) {
-		if (m_realPlayer == null) {
-			return super.getDistanceSqToEntity(entityIn);
-		} else {
-			return m_realPlayer.getDistanceSqToEntity(entityIn);
-		}
-	}
-
-	@Override
-	public float getDistanceToEntity(Entity entityIn) {
-		if (m_realPlayer == null) {
-			return super.getDistanceToEntity(entityIn);
-		} else {
-			return m_realPlayer.getDistanceToEntity(entityIn);
 		}
 	}
 

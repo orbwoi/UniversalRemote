@@ -6,15 +6,15 @@ import org.lwjgl.input.Keyboard;
 
 import clayborn.universalremote.config.UniversalRemoteConfiguration;
 import clayborn.universalremote.creative.UniversalRemoteTab;
-import clayborn.universalremote.entity.EntityPlayerMPProxy;
-import clayborn.universalremote.entity.EntityPlayerProxy;
-import clayborn.universalremote.inventory.ContainerProxy;
+import clayborn.universalremote.hooks.entity.EntityPlayerMPProxy;
+import clayborn.universalremote.hooks.entity.EntityPlayerProxy;
+import clayborn.universalremote.hooks.entity.HookedEntityPlayerMP;
+import clayborn.universalremote.hooks.events.PlayerRemoteGuiDataManagerServer;
+import clayborn.universalremote.hooks.events.PlayerWorldSyncServer;
+import clayborn.universalremote.hooks.world.WorldServerProxy;
 import clayborn.universalremote.util.CapabilityHelper;
 import clayborn.universalremote.util.TextFormatter;
 import clayborn.universalremote.util.Util;
-import clayborn.universalremote.world.PlayerRemoteGuiDataManagerServer;
-import clayborn.universalremote.world.PlayerWorldSyncServer;
-import clayborn.universalremote.world.WorldServerProxy;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.renderer.block.model.ModelResourceLocation;
@@ -231,13 +231,13 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 	}
 
 	// these guys work only without the wrapper proxies!
-	protected static final String[] m_containerProxyExceptionsList = { "com.raoulvdberge.refinedstorage", "appeng", "com.rwtema" };
+	//protected static final String[] m_containerProxyExceptionsList = { "com.raoulvdberge.refinedstorage", "appeng", "com.rwtema" };
 
 	// can't handle the proxy player...
-	protected static final String[] m_playerProxyDuringActivationExceptionsList = { "ic2" };
+	private static final String[] m_playerProxyDuringActivationExceptionsList = { "ic2", "li" };
 
 	// can't handle the proxy world...
-	protected static final String[] m_worldProxyDuringActivationExceptionsList = { "ic2" };
+	private static final String[] m_worldProxyDuringActivationExceptionsList = { "ic2", "li" };
 
 	protected boolean m_publishSubTypes;
 
@@ -561,7 +561,7 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 			{
 
 				// The block needs to be in a loaded chunk
-				if (world.isBlockLoaded(myNBT.getBlockPosition()))
+				if (world.isBlockLoaded(myNBT.getBlockPosition(), false))
 				{
 
 					IBlockState state = world.getBlockState(myNBT.getBlockPosition());
@@ -592,7 +592,7 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 				    				PlayerRemoteGuiDataManagerServer.INSTANCE.PrepareForRemoteActivation(world, (EntityPlayerMP) player, myNBT.getBlockPosition(), new Vec3d(myNBT.getPlayerX(), myNBT.getPlayerY(), myNBT.getPlayerZ()));
 
 				    				// Send the pre-activation trigger and config packet!
-				    				PlayerRemoteGuiDataManagerServer.INSTANCE.SendPreparePacket(player, myNBT.getTag());
+				    				PlayerRemoteGuiDataManagerServer.INSTANCE.SendPreparePacket(world, player, myNBT.getTag());
 
 				    				// make sure player.GetEntityWorld returns the TE's world
 									if (oldWorld != world)
@@ -625,19 +625,30 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 								if (player.openContainer != oldContainer)
 								{
 
-									if (!Util.doesStringStartWithAnyInArray(m_containerProxyExceptionsList, player.openContainer.getClass().getName()))
+									if (player instanceof HookedEntityPlayerMP)
 									{
-										player.openContainer = new ContainerProxy(player.openContainer, fakePlayer);
+										((HookedEntityPlayerMP)player).SetRemoteFilter(
+												test, world,
+												myNBT.getBlockPosition(),
+												myNBT.getPlayerX(), myNBT.getPlayerY(), myNBT.getPlayerZ(),
+												myNBT.getPlayerPitch(), myNBT.getPlayerYaw());
+									} else {
+										// uh ho...
+										Util.logger.error("Unable to set player's remote filter because player was not instance of RemoteEnabledEntityPlayerMP!");
 									}
 
-									// don't need this for vanilla
-									if (!test.startsWith("net.minecraft") && oldWorld != world)
-									{
+//									if (!Util.doesStringStartWithAnyInArray(m_containerProxyExceptionsList, player.openContainer.getClass().getName()))
+//									{
+//										player.openContainer = new ContainerProxy(player.openContainer, fakePlayer);
+//									}
 
-										PlayerWorldSyncServer.INSTANCE.setPlayerData(player, player.openContainer,
-												oldWorld.provider.getDimension(), world.provider.getDimension());
+//									// don't need this for vanilla
+//									if (!test.startsWith("net.minecraft") && oldWorld != world)
+//									{
 
-									}
+										PlayerWorldSyncServer.INSTANCE.setPlayerData(player, player.openContainer);
+
+//									}
 
 								} else {
 

@@ -1,4 +1,4 @@
-package clayborn.universalremote.world;
+package clayborn.universalremote.hooks.world;
 
 import clayborn.universalremote.util.InjectionHandler;
 import clayborn.universalremote.util.Util;

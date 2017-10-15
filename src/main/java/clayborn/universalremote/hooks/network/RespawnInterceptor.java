@@ -1,19 +1,16 @@
-package clayborn.universalremote.network;
+package clayborn.universalremote.hooks.network;
 
+import clayborn.universalremote.hooks.client.MinecraftProxy;
 import clayborn.universalremote.util.InjectionHandler;
 import clayborn.universalremote.util.Util;
-import clayborn.universalremote.world.RemoteGuiEnabledClientWorld;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiDownloadTerrain;
 import net.minecraft.client.multiplayer.WorldClient;
 import net.minecraft.client.network.NetHandlerPlayClient;
 import net.minecraft.network.NetworkManager;
 import net.minecraft.network.ThreadQuickExitException;
 import net.minecraft.network.play.server.SPacketRespawn;
-import net.minecraft.scoreboard.Scoreboard;
-import net.minecraft.world.WorldSettings;
 
 public class RespawnInterceptor extends SimpleChannelInboundHandler<SPacketRespawn> {
 
@@ -73,44 +70,33 @@ public class RespawnInterceptor extends SimpleChannelInboundHandler<SPacketRespa
 
 	public void invoke(SPacketRespawn packetIn)
     {
+
+    	NetHandlerPlayClient handler = (NetHandlerPlayClient) m_manager.getNetHandler();
+
+		MinecraftProxy.INSTANCE.SyncFromReal();
+
 		try {
-
-	    	NetHandlerPlayClient handler = (NetHandlerPlayClient) m_manager.getNetHandler();
-
-	    	Minecraft gameController = InjectionHandler.readFieldOfType(handler, Minecraft.class);
-
-	        if (packetIn.getDimensionID() != gameController.player.dimension)
-	        {
-	        	// this also writes "hasStatistics" but it doesn't seem to be used anywhere
-	        	InjectionHandler.writeAllFieldsOfType(handler, false, boolean.class);
-
-	        	// clientWorldController Old
-	        	WorldClient clientWorldController = InjectionHandler.readFieldOfType(handler, WorldClient.class);
-
-	            Scoreboard scoreboard = clientWorldController.getScoreboard();
-
-	            // clientWorldController New
-	            clientWorldController =
-	            		new RemoteGuiEnabledClientWorld(handler, new WorldSettings(0L, packetIn.getGameType(), false, gameController.world.getWorldInfo().isHardcoreModeEnabled(), packetIn.getWorldType()), packetIn.getDimensionID(), packetIn.getDifficulty(), gameController.mcProfiler);
-
-	            InjectionHandler.writeFieldOfType(handler, clientWorldController, WorldClient.class);
-
-	            // other settings
-	            clientWorldController.setWorldScoreboard(scoreboard);
-	            gameController.loadWorld(clientWorldController);
-	            gameController.player.dimension = packetIn.getDimensionID();
-	            gameController.displayGuiScreen(new GuiDownloadTerrain(handler));
-	        }
-
-	        // other settings
-	        gameController.setDimensionAndSpawnPlayer(packetIn.getDimensionID());
-	        gameController.playerController.setGameType(packetIn.getGameType());
-
-
+			InjectionHandler.writeFieldOfType(handler, MinecraftProxy.INSTANCE, Minecraft.class);
 		} catch (IllegalAccessException e) {
+			Util.logger.logException("Unable to hook minecraft instance via MinecraftProxy!", e);
+		}
 
-			Util.logger.logException("Unable to process SPacketJoinGame!", e);
+		handler.handleRespawn(packetIn);
 
+		MinecraftProxy.INSTANCE.SyncToReal();
+
+		// sync the world!
+		try {
+			InjectionHandler.writeFieldOfType(handler, Minecraft.getMinecraft().world, WorldClient.class);
+		} catch (IllegalAccessException e) {
+			Util.logger.logException("Unable to sync world to NetHandlerPlayClient!", e);
+		}
+
+		// restore the old Minecraft if not done so already
+		try {
+			InjectionHandler.writeFieldOfType(handler, Minecraft.getMinecraft(), Minecraft.class);
+		} catch (IllegalAccessException e) {
+			Util.logger.logException("Unable to restore Minecraft to NetHandlerPlayClient!", e);
 		}
 
     }

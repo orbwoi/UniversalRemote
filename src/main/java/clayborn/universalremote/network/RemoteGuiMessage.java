@@ -4,10 +4,11 @@ import java.io.IOException;
 
 import org.apache.commons.lang3.reflect.ConstructorUtils;
 
+import clayborn.universalremote.hooks.network.OpenGuiWrapper;
+import clayborn.universalremote.hooks.world.HookedClientWorld;
 import clayborn.universalremote.items.ItemUniversalRemote;
 import clayborn.universalremote.items.ItemUniversalRemote.ItemUniversalRemoteNBTParser;
 import clayborn.universalremote.util.Util;
-import clayborn.universalremote.world.RemoteGuiEnabledClientWorld;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
@@ -63,9 +64,9 @@ public class RemoteGuiMessage implements IMessage {
 
 				        IBlockState state = Block.getStateById(message.getBlockId());
 
-				        if (player.world instanceof RemoteGuiEnabledClientWorld)
+				        if (player.world instanceof HookedClientWorld)
 				        {
-				        	((RemoteGuiEnabledClientWorld)player.world).SetRemoteGui(state, message.getUpdateTag(), message.getReadTag(), x, y, z, message.getDimensionId());
+				        	((HookedClientWorld)player.world).SetRemoteGui(state, message.getUpdateTag(), message.getReadTag(), x, y, z, message.getDimensionId());
 				        } else {
 				        	Util.logger.error("Client world is not instance of RemoteGuiEnabledClientWorld!");
 				        }

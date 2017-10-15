@@ -2,6 +2,7 @@ package clayborn.universalremote.network;
 
 import java.util.EnumMap;
 
+import clayborn.universalremote.hooks.network.OpenGuiFilterServer;
 import clayborn.universalremote.settings.Strings;
 import clayborn.universalremote.util.InjectionHandler;
 import clayborn.universalremote.util.Util;

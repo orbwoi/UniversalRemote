@@ -1,7 +1,8 @@
 package clayborn.universalremote;
 
 import clayborn.universalremote.config.UniversalRemoteConfiguration;
-import clayborn.universalremote.network.OpenGuiWrapper;
+import clayborn.universalremote.hooks.events.PlayerWorldSyncServer;
+import clayborn.universalremote.hooks.network.OpenGuiWrapper;
 import clayborn.universalremote.network.RemoteGuiNetworkManager;
 import clayborn.universalremote.proxy.ISidedProxy;
 import clayborn.universalremote.registrar.Registrar;
@@ -10,7 +11,6 @@ import clayborn.universalremote.util.Logger;
 import clayborn.universalremote.util.Util;
 import clayborn.universalremote.version.UniversalRemoteVersionProvider;
 import clayborn.universalremote.version.VersionTracker;
-import clayborn.universalremote.world.PlayerWorldSyncServer;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.Mod.EventHandler;
@@ -18,6 +18,7 @@ import net.minecraftforge.fml.common.SidedProxy;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
+import net.minecraftforge.fml.common.event.FMLServerAboutToStartEvent;
 
 @Mod(modid = Strings.MODID, version = Strings.VERSION)
 public class UniversalRemote
@@ -70,5 +71,11 @@ public class UniversalRemote
     public void postInit(FMLPostInitializationEvent event){
     	proxy.postInit(event);
     }
+
+    @EventHandler
+	public void serverAboutToStart(FMLServerAboutToStartEvent event)
+	{
+    	proxy.serverAboutToStart(event);
+	}
 
 }

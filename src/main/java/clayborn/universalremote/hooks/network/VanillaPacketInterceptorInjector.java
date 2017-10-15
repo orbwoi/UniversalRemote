@@ -1,4 +1,4 @@
-package clayborn.universalremote.network;
+package clayborn.universalremote.hooks.network;
 
 import clayborn.universalremote.util.Util;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;

@@ -1,4 +1,4 @@
-package clayborn.universalremote.network;
+package clayborn.universalremote.hooks.network;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -184,7 +184,7 @@ public class OpenGuiWrapper extends FMLMessage.OpenGui {
 		return f_z.getInt(this);
 	}
 
-    void toBytes(ByteBuf buf)
+	public void toBytes(ByteBuf buf)
     {
         try {
         	m_toBytes.invoke(this, buf);
@@ -193,7 +193,7 @@ public class OpenGuiWrapper extends FMLMessage.OpenGui {
 		}
     }
 
-    void fromBytes(ByteBuf buf)
+	public void fromBytes(ByteBuf buf)
     {
     	try {
     		m_fromBytes.invoke(this, buf);

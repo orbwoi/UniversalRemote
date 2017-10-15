@@ -116,7 +116,6 @@ public class ItemEnergyBase extends ItemBase {
 
 	@Override
 	public boolean updateItemStackNBT(NBTTagCompound nbt) {
-		// TODO Auto-generated method stub
 		return super.updateItemStackNBT(nbt);
 	}
 

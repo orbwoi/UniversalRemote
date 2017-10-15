@@ -1,8 +1,10 @@
-package clayborn.universalremote.network;
+package clayborn.universalremote.hooks.network;
 
+import clayborn.universalremote.hooks.events.PlayerRemoteGuiDataManagerServer;
+import clayborn.universalremote.hooks.events.PlayerRemoteGuiDataManagerServer.RemoteGuiPlayerData;
+import clayborn.universalremote.network.RemoteGuiMessage;
+import clayborn.universalremote.network.RemoteGuiNetworkManager;
 import clayborn.universalremote.util.Util;
-import clayborn.universalremote.world.PlayerRemoteGuiDataManagerServer;
-import clayborn.universalremote.world.PlayerRemoteGuiDataManagerServer.RemoteGuiPlayerData;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandler;
 import io.netty.channel.ChannelOutboundHandlerAdapter;

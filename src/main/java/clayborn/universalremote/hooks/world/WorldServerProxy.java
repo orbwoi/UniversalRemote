@@ -1,4 +1,4 @@
-package clayborn.universalremote.world;
+package clayborn.universalremote.hooks.world;
 
 import java.io.File;
 import java.util.Calendar;
@@ -100,6 +100,16 @@ public class WorldServerProxy extends WorldServer {
 		} catch (IllegalAccessException e) {
 			Util.logger.logException("Unable to set WorldProviderProxyServer", e);
 		}
+	}
+
+	public WorldServer GetRealWorld()
+	{
+		return m_realWorld;
+	}
+
+	public WorldServer GetProxyWorld()
+	{
+		return m_proxyWorld;
 	}
 
 	/* Modified Functions */

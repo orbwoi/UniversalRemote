@@ -1,4 +1,4 @@
-package clayborn.universalremote.world;
+package clayborn.universalremote.hooks.world;
 
 import clayborn.universalremote.util.InjectionHandler;
 import clayborn.universalremote.util.Util;
@@ -34,13 +34,16 @@ public class WorldProviderProxyClient extends WorldProvider {
 
 	public void setData(int fakeDim, String modClass)
 	{
-		m_fakeDim = fakeDim;
-		m_modPrefix = Util.getClassDomainFromName(modClass);
+		if (fakeDim != m_realProvider.getDimension())
+		{
+			m_fakeDim = fakeDim;
+			m_modPrefix = Util.getClassDomainFromName(modClass);
+		}
 	}
 
-	public boolean hasData()
+	public boolean isDifferent()
 	{
-		return m_modPrefix != null;
+		return m_modPrefix != null && m_fakeDim != m_realProvider.getDimension();
 	}
 
 	public void clearData()
@@ -54,6 +57,7 @@ public class WorldProviderProxyClient extends WorldProvider {
 	@Override
 	public int getDimension() {
 		if(m_realProvider != null) {
+			// already returns false if prefix is null!
 			if (Util.isPrefixInCallStack(m_modPrefix))
 			{
 				return m_fakeDim;

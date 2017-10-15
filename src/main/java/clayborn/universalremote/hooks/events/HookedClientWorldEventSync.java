@@ -1,5 +1,6 @@
-package clayborn.universalremote.world;
+package clayborn.universalremote.hooks.events;
 
+import clayborn.universalremote.hooks.world.HookedClientWorld;
 import clayborn.universalremote.util.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.client.event.GuiOpenEvent;
@@ -8,7 +9,7 @@ import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
 // is this class name long enough yet?
-public class RemoteGuiEnabledClientWorldEventSync {
+public class HookedClientWorldEventSync {
 
 	@SideOnly(Side.CLIENT)
 	@SubscribeEvent
@@ -18,9 +19,9 @@ public class RemoteGuiEnabledClientWorldEventSync {
 		{
 			// a gui has been closed -- reset remote gui
 
-			if (Minecraft.getMinecraft().world instanceof RemoteGuiEnabledClientWorld)
+			if (Minecraft.getMinecraft().world instanceof HookedClientWorld)
 			{
-				((RemoteGuiEnabledClientWorld)Minecraft.getMinecraft().world).ClearRemoteGui();
+				((HookedClientWorld)Minecraft.getMinecraft().world).ClearRemoteGui();
 			}
 			else
 			{
