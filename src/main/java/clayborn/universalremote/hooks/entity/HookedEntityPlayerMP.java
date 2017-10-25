@@ -7,20 +7,13 @@ import java.util.Set;
 import com.mojang.authlib.GameProfile;
 
 import clayborn.universalremote.hooks.world.WorldServerProxy;
-import clayborn.universalremote.util.InjectionHandler;
 import clayborn.universalremote.util.Util;
-import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.inventory.ContainerPlayer;
-import net.minecraft.inventory.Slot;
-import net.minecraft.inventory.SlotCrafting;
-import net.minecraft.network.datasync.EntityDataManager;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.management.PlayerInteractionManager;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
-import net.minecraftforge.common.capabilities.CapabilityDispatcher;
 
 public class HookedEntityPlayerMP extends EntityPlayerMP {
 
@@ -47,77 +40,6 @@ public class HookedEntityPlayerMP extends EntityPlayerMP {
 		new HashSet<String>(Arrays.asList(
     	     new String[] {"net.minecraft"}
     	));
-
-    public static HookedEntityPlayerMP CreateFromExisting(EntityPlayerMP original)
-    {
-		HookedEntityPlayerMP returnedPlayer = new HookedEntityPlayerMP(original.mcServer, (WorldServer) original.world, original.getGameProfile(), original.interactionManager);
-
-		CapabilityDispatcher caps = null;
-		EntityDataManager man = null;
-
-		// backup the player capabilities
-		try {
-			caps = InjectionHandler.readFieldOfType(returnedPlayer, CapabilityDispatcher.class);
-		} catch (IllegalAccessException e) {
-			Util.logger.logException("Unable to capture CapabilityDispatcher from created player.", e);
-		}
-
-		// backup the player Data Manager
-		try {
-			man = InjectionHandler.readFieldOfType(returnedPlayer, EntityDataManager.class);
-		} catch (IllegalAccessException e) {
-			Util.logger.logException("Unable to capture EntityDataManager from created player.", e);
-		}
-
-		InjectionHandler.copyAllFieldsFromEx(returnedPlayer, original, EntityPlayerMP.class);
-
-		// fix dependent references
-		returnedPlayer.interactionManager.player = returnedPlayer;
-		returnedPlayer.inventory.player = returnedPlayer;
-		returnedPlayer.getAdvancements().setPlayer(returnedPlayer);
-
-		try {
-			InjectionHandler.writeFieldOfType(((ContainerPlayer)returnedPlayer.inventoryContainer), returnedPlayer, EntityPlayer.class);
-		} catch (IllegalAccessException e) {
-			Util.logger.logException("Unable to write ContainerPlayer internal player reference.", e);
-		}
-
-		for (Slot slot : ((ContainerPlayer)returnedPlayer.inventoryContainer).inventorySlots)
-		{
-			if (slot instanceof SlotCrafting)
-			{
-				try {
-					InjectionHandler.writeFieldOfType(((SlotCrafting)slot), returnedPlayer, EntityPlayer.class);
-				} catch (IllegalAccessException e) {
-					Util.logger.logException("Unable to write EntityDataManager to new hooked player.", e);
-				}
-			}
-		}
-
-		// write Data Manager
-		if (man != null)
-		{
-			try {
-				InjectionHandler.writeFieldOfType(returnedPlayer, man, EntityDataManager.class);
-			} catch (IllegalAccessException e) {
-				Util.logger.logException("Unable to write EntityDataManager to new hooked player.", e);
-			}
-		} else {
-			Util.logger.error("Unable to write EntityDataManager because it is null!");
-		}
-
-		// write player capabilities
-		if (caps != null)
-		{
-			try {
-				InjectionHandler.writeFieldOfType(returnedPlayer, caps, CapabilityDispatcher.class);
-			} catch (IllegalAccessException e) {
-				Util.logger.logException("Unable to write CapabilityDispatcher to new hooked player.", e);
-			}
-		}
-
-		return returnedPlayer;
-    }
 
 	public HookedEntityPlayerMP(MinecraftServer server, WorldServer worldIn, GameProfile profile,
 			PlayerInteractionManager interactionManagerIn) {
