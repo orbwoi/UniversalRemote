@@ -1,5 +1,7 @@
 package clayborn.universalremote.hooks.entity;
 
+import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -83,13 +85,24 @@ import net.minecraft.world.LockCode;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
 import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.fml.relauncher.ReflectionHelper;
 
 public class EntityPlayerMPProxy extends EntityPlayerMP {
 
 	private EntityPlayerMP m_realPlayer;
 
+	private ArrayList<Field> m_nonsyncingFields = new ArrayList<Field>();
+
+	private double m_fakePosX, m_fakePosY, m_fakePosZ;
+	private float m_fakePitch, m_fakeYaw;
+	private int m_fakeDimension;
+
+	private double m_realPosX, m_realPosY, m_realPosZ;
+	private float m_realPitch, m_realYaw, m_realYawHead;
+	private int m_realDimension;
+
 	//public EntityPlayerMP(MinecraftServer server, WorldServer worldIn, GameProfile profile, PlayerInteractionManager interactionManagerIn)
-	public EntityPlayerMPProxy(EntityPlayerMP realPlayer, double posX, double posY, double posZ, float pitch, float yaw)
+	public EntityPlayerMPProxy(EntityPlayerMP realPlayer, double posX, double posY, double posZ, float pitch, float yaw, int dimension)
 	{
 		super(realPlayer.mcServer, (WorldServer) realPlayer.world, realPlayer.getGameProfile(), realPlayer.interactionManager);
 
@@ -98,19 +111,92 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 
 		InjectionHandler.copyAllFieldsFrom(this, realPlayer, EntityPlayerMP.class);
 
-		this.posX = posX;
-		this.posY = posY;
-		this.posZ = posZ;
-		this.rotationPitch = pitch;
-		this.rotationYaw = yaw;
+		this.posX = m_fakePosX = posX;
+		this.posY = m_fakePosY = posY;
+		this.posZ = m_fakePosZ = posZ;
+		this.rotationPitch = m_fakePitch = pitch;
+		this.rotationYaw = m_fakeYaw = yaw;
 		this.rotationYawHead = yaw;
+		this.dimension = m_fakeDimension = dimension;
+
+		m_realPosX = realPlayer.posX;
+		m_realPosY = realPlayer.posY;
+		m_realPosZ = realPlayer.posZ;
+		m_realPitch = realPlayer.rotationPitch;
+		m_realYaw = realPlayer.rotationYaw;
+		m_realYawHead = realPlayer.rotationYawHead;
+		m_realDimension = realPlayer.dimension;
+
+		m_nonsyncingFields.add(ReflectionHelper.findField(Entity.class, "posX", "field_70165_t"));
+		m_nonsyncingFields.add(ReflectionHelper.findField(Entity.class, "posY", "field_70163_u"));
+		m_nonsyncingFields.add(ReflectionHelper.findField(Entity.class, "posZ", "field_70161_v"));
+		m_nonsyncingFields.add(ReflectionHelper.findField(Entity.class, "rotationPitch", "field_70125_A"));
+		m_nonsyncingFields.add(ReflectionHelper.findField(Entity.class, "rotationYaw", "field_70177_z"));
+		m_nonsyncingFields.add(ReflectionHelper.findField(EntityLivingBase.class, "rotationYawHead", "field_70759_as"));
+		m_nonsyncingFields.add(ReflectionHelper.findField(Entity.class, "dimension", "field_71093_bK"));
 
 		m_realPlayer = realPlayer;
 	}
 
-	public EntityPlayer getRealPlayer()
+	public EntityPlayerMP getRealPlayer()
 	{
 		return m_realPlayer;
+	}
+
+	public void syncToRealPlayer()
+	{
+		// iterate over every public property of the real player and compare to this one
+        InjectionHandler.IComparisonCallback callback = (Field f, Object oldValue, Object newValue) ->
+        {
+        	if (!m_nonsyncingFields.contains(f))
+        	{
+	        	//Util.logger.info("Syncing field {} of {} with {} overwriting {}", f.getName(), m_realPlayer.getClass().getName(), newValue, oldValue);
+	        	InjectionHandler.copyField(f, m_realPlayer, this);
+        	} else {
+        		// check if the original value has been over-written
+        		if (this.posX != m_fakePosX) m_realPlayer.posX = this.posX;
+        		if (this.posY != m_fakePosY) m_realPlayer.posY = this.posY;
+        		if (this.posZ != m_fakePosZ) m_realPlayer.posZ = this.posZ;
+        		if (this.rotationPitch != m_fakePitch) m_realPlayer.posX = this.posX;
+        		if (this.rotationYaw != m_fakeYaw) m_realPlayer.rotationYaw = this.rotationYaw;
+        		if (this.rotationYawHead != m_fakeYaw) m_realPlayer.rotationYawHead = this.rotationYawHead;
+        		if (this.dimension != m_fakeDimension) m_realPlayer.dimension = this.dimension;
+
+        		//Util.logger.info("Syncing special syncing field {}", f.getName());
+        	}
+        };
+        InjectionHandler.comparePublicFields(m_realPlayer, this, EntityPlayerMP.class, callback);
+	}
+
+	private <T> T syncPublicFieldsFromRealAndReturn(T value)
+	{
+		syncPublicFieldsFromReal();
+		return value;
+	}
+
+	private void syncPublicFieldsFromReal()
+	{
+		// iterate over every public property of the real player and compare to this one
+        InjectionHandler.IComparisonCallback callback = (Field f, Object oldValue, Object newValue) ->
+        {
+        	if (!m_nonsyncingFields.contains(f))
+        	{
+            	//Util.logger.info("Updating field {} of {} with {} overwriting {}", f.getName(), this.getClass().getName(), newValue, oldValue);
+            	InjectionHandler.copyField(f, this, m_realPlayer);
+        	} else {
+        		// check if the original value has been over-written
+        		if (m_realPlayer.posX != m_realPosX) this.posX = m_realPlayer.posX;
+        		if (m_realPlayer.posY != m_realPosY) this.posY = m_realPlayer.posY;
+        		if (m_realPlayer.posZ != m_realPosZ) this.posZ = m_realPlayer.posZ;
+        		if (m_realPlayer.rotationPitch != m_realPitch) this.posX = m_realPlayer.posX;
+        		if (m_realPlayer.rotationYaw != m_realYaw) this.rotationYaw = m_realPlayer.rotationYaw;
+        		if (m_realPlayer.rotationYawHead != m_realYawHead) this.rotationYawHead = m_realPlayer.rotationYawHead;
+        		if (m_realPlayer.dimension != m_realDimension) this.dimension = m_realPlayer.dimension;
+
+        		//Util.logger.info("Updating special updating field {}", f.getName());
+        	}
+        };
+        InjectionHandler.comparePublicFields(this, m_realPlayer, EntityPlayerMP.class, callback);
 	}
 
 	/* Modified Functions */
@@ -168,7 +254,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void addSelfToInternalCraftingInventory() {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.addSelfToInternalCraftingInventory();
+			syncPublicFieldsFromReal();
 		} else {
 			super.addSelfToInternalCraftingInventory();
 		}
@@ -177,7 +265,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void onUpdateEntity() {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.onUpdateEntity();
+			syncPublicFieldsFromReal();
 		} else {
 			super.onUpdateEntity();
 		}
@@ -186,7 +276,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void handleFalling(double y, boolean onGroundIn) {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.handleFalling(y, onGroundIn);
+			syncPublicFieldsFromReal();
 		} else {
 			super.handleFalling(y, onGroundIn);
 		}
@@ -195,7 +287,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void getNextWindowId() {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.getNextWindowId();
+			syncPublicFieldsFromReal();
 		} else {
 			super.getNextWindowId();
 		}
@@ -204,7 +298,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void sendSlotContents(Container containerToSend, int slotInd, ItemStack stack) {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.sendSlotContents(containerToSend, slotInd, stack);
+			syncPublicFieldsFromReal();
 		} else {
 			super.sendSlotContents(containerToSend, slotInd, stack);
 		}
@@ -213,7 +309,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void sendContainerToPlayer(Container containerIn) {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.sendContainerToPlayer(containerIn);
+			syncPublicFieldsFromReal();
 		} else {
 			super.sendContainerToPlayer(containerIn);
 		}
@@ -222,7 +320,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void sendAllContents(Container containerToSend, NonNullList<ItemStack> itemsList) {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.sendAllContents(containerToSend, itemsList);
+			syncPublicFieldsFromReal();
 		} else {
 			super.sendAllContents(containerToSend, itemsList);
 		}
@@ -231,7 +331,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void sendWindowProperty(Container containerIn, int varToUpdate, int newValue) {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.sendWindowProperty(containerIn, varToUpdate, newValue);
+			syncPublicFieldsFromReal();
 		} else {
 			super.sendWindowProperty(containerIn, varToUpdate, newValue);
 		}
@@ -240,7 +342,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void sendAllWindowProperties(Container containerIn, IInventory inventory) {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.sendAllWindowProperties(containerIn, inventory);
+			syncPublicFieldsFromReal();
 		} else {
 			super.sendAllWindowProperties(containerIn, inventory);
 		}
@@ -249,7 +353,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void updateHeldItem() {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.updateHeldItem();
+			syncPublicFieldsFromReal();
 		} else {
 			super.updateHeldItem();
 		}
@@ -258,7 +364,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void closeContainer() {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.closeContainer();
+			syncPublicFieldsFromReal();
 		} else {
 			super.closeContainer();
 		}
@@ -267,7 +375,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void setEntityActionState(float strafe, float forward, boolean jumping, boolean sneaking) {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.setEntityActionState(strafe, forward, jumping, sneaking);
+			syncPublicFieldsFromReal();
 		} else {
 			super.setEntityActionState(strafe, forward, jumping, sneaking);
 		}
@@ -276,7 +386,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void mountEntityAndWakeUp() {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.mountEntityAndWakeUp();
+			syncPublicFieldsFromReal();
 		} else {
 			super.mountEntityAndWakeUp();
 		}
@@ -285,7 +397,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public boolean hasDisconnected() {
 		if(m_realPlayer != null) {
-			return m_realPlayer.hasDisconnected();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.hasDisconnected());
 		} else {
 			return super.hasDisconnected();
 		}
@@ -294,7 +407,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void setPlayerHealthUpdated() {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.setPlayerHealthUpdated();
+			syncPublicFieldsFromReal();
 		} else {
 			super.setPlayerHealthUpdated();
 		}
@@ -303,7 +418,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void copyFrom(EntityPlayerMP that, boolean p_193104_2_) {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.copyFrom(that, p_193104_2_);
+			syncPublicFieldsFromReal();
 		} else {
 			super.copyFrom(that, p_193104_2_);
 		}
@@ -312,7 +429,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public WorldServer getServerWorld() {
 		if(m_realPlayer != null) {
-			return m_realPlayer.getServerWorld();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getServerWorld());
 		} else {
 			return super.getServerWorld();
 		}
@@ -321,7 +439,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public String getPlayerIP() {
 		if(m_realPlayer != null) {
-			return m_realPlayer.getPlayerIP();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getPlayerIP());
 		} else {
 			return super.getPlayerIP();
 		}
@@ -330,7 +449,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void handleClientSettings(CPacketClientSettings packetIn) {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.handleClientSettings(packetIn);
+			syncPublicFieldsFromReal();
 		} else {
 			super.handleClientSettings(packetIn);
 		}
@@ -339,7 +460,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public EnumChatVisibility getChatVisibility() {
 		if(m_realPlayer != null) {
-			return m_realPlayer.getChatVisibility();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getChatVisibility());
 		} else {
 			return super.getChatVisibility();
 		}
@@ -348,7 +470,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void loadResourcePack(String url, String hash) {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.loadResourcePack(url, hash);
+			syncPublicFieldsFromReal();
 		} else {
 			super.loadResourcePack(url, hash);
 		}
@@ -357,7 +481,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void markPlayerActive() {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.markPlayerActive();
+			syncPublicFieldsFromReal();
 		} else {
 			super.markPlayerActive();
 		}
@@ -366,7 +492,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public StatisticsManagerServer getStatFile() {
 		if(m_realPlayer != null) {
-			return m_realPlayer.getStatFile();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getStatFile());
 		} else {
 			return super.getStatFile();
 		}
@@ -375,7 +502,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public RecipeBookServer getRecipeBook() {
 		if(m_realPlayer != null) {
-			return m_realPlayer.getRecipeBook();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getRecipeBook());
 		} else {
 			return super.getRecipeBook();
 		}
@@ -384,7 +512,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void removeEntity(Entity entityIn) {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.removeEntity(entityIn);
+			syncPublicFieldsFromReal();
 		} else {
 			super.removeEntity(entityIn);
 		}
@@ -393,7 +523,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void addEntity(Entity entityIn) {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.addEntity(entityIn);
+			syncPublicFieldsFromReal();
 		} else {
 			super.addEntity(entityIn);
 		}
@@ -402,7 +534,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public Entity getSpectatingEntity() {
 		if(m_realPlayer != null) {
-			return m_realPlayer.getSpectatingEntity();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getSpectatingEntity());
 		} else {
 			return super.getSpectatingEntity();
 		}
@@ -411,7 +544,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void setSpectatingEntity(Entity entityToSpectate) {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.setSpectatingEntity(entityToSpectate);
+			syncPublicFieldsFromReal();
 		} else {
 			super.setSpectatingEntity(entityToSpectate);
 		}
@@ -420,7 +555,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public long getLastActiveTime() {
 		if(m_realPlayer != null) {
-			return m_realPlayer.getLastActiveTime();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getLastActiveTime());
 		} else {
 			return super.getLastActiveTime();
 		}
@@ -429,7 +565,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public ITextComponent getTabListDisplayName() {
 		if(m_realPlayer != null) {
-			return m_realPlayer.getTabListDisplayName();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getTabListDisplayName());
 		} else {
 			return super.getTabListDisplayName();
 		}
@@ -438,6 +575,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public boolean isInvulnerableDimensionChange() {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			return m_realPlayer.isInvulnerableDimensionChange();
 		} else {
 			return super.isInvulnerableDimensionChange();
@@ -447,7 +585,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void clearInvulnerableDimensionChange() {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.clearInvulnerableDimensionChange();
+			syncPublicFieldsFromReal();
 		} else {
 			super.clearInvulnerableDimensionChange();
 		}
@@ -456,7 +596,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void setElytraFlying() {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.setElytraFlying();
+			syncPublicFieldsFromReal();
 		} else {
 			super.setElytraFlying();
 		}
@@ -465,7 +607,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public void clearElytraFlying() {
 		if(m_realPlayer != null) {
+			syncToRealPlayer();
 			m_realPlayer.clearElytraFlying();
+			syncPublicFieldsFromReal();
 		} else {
 			super.clearElytraFlying();
 		}
@@ -474,7 +618,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public PlayerAdvancements getAdvancements() {
 		if(m_realPlayer != null) {
-			return m_realPlayer.getAdvancements();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getAdvancements());
 		} else {
 			return super.getAdvancements();
 		}
@@ -483,7 +628,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 	@Override
 	public Vec3d getEnteredNetherPosition() {
 		if(m_realPlayer != null) {
-			return m_realPlayer.getEnteredNetherPosition();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getEnteredNetherPosition());
 		} else {
 			return super.getEnteredNetherPosition();
 		}
@@ -494,7 +640,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getEntityWorld();
 		} else {
-			return m_realPlayer.getEntityWorld();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getEntityWorld());
 		}
 	}
 
@@ -503,7 +650,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 				super.onUpdate();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.onUpdate();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -512,7 +661,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getMaxInPortalTime();
 		} else {
-			return m_realPlayer.getMaxInPortalTime();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getMaxInPortalTime());
 		}
 	}
 
@@ -521,7 +671,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getPortalCooldown();
 		} else {
-			return m_realPlayer.getPortalCooldown();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getPortalCooldown());
 		}
 	}
 
@@ -530,7 +681,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.playSound(soundIn, volume, pitch);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.playSound(soundIn, volume, pitch);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -539,7 +692,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getSoundCategory();
 		} else {
-			return m_realPlayer.getSoundCategory();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getSoundCategory());
 		}
 	}
 
@@ -548,7 +702,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.handleStatusUpdate(id);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.handleStatusUpdate(id);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -557,7 +713,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.closeScreen();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.closeScreen();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -566,7 +724,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.updateRidden();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.updateRidden();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -575,7 +735,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.preparePlayerToSpawn();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.preparePlayerToSpawn();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -584,7 +746,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.onLivingUpdate();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.onLivingUpdate();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -593,7 +757,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getScore();
 		} else {
-			return m_realPlayer.getScore();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getScore());
 		}
 	}
 
@@ -602,7 +767,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setScore(scoreIn);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setScore(scoreIn);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -611,7 +778,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.addScore(scoreIn);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.addScore(scoreIn);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -620,7 +789,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.onDeath(cause);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.onDeath(cause);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -629,7 +800,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.dropItem(dropAll);
 		} else {
-			return m_realPlayer.dropItem(dropAll);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.dropItem(dropAll));
 		}
 	}
 
@@ -638,7 +810,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.dropItem(itemStackIn, unused);
 		} else {
-			return m_realPlayer.dropItem(itemStackIn, unused);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.dropItem(itemStackIn, unused));
 		}
 	}
 
@@ -647,7 +820,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.dropItem(droppedItem, dropAround, traceItem);
 		} else {
-			return m_realPlayer.dropItem(droppedItem, dropAround, traceItem);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.dropItem(droppedItem, dropAround, traceItem));
 		}
 	}
 
@@ -656,7 +830,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.dropItemAndGetStack(p_184816_1_);
 		} else {
-			return m_realPlayer.dropItemAndGetStack(p_184816_1_);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.dropItemAndGetStack(p_184816_1_));
 		}
 	}
 
@@ -666,7 +841,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getDigSpeed(state);
 		} else {
-			return m_realPlayer.getDigSpeed(state);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getDigSpeed(state));
 		}
 	}
 
@@ -675,7 +851,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getDigSpeed(state, pos);
 		} else {
-			return m_realPlayer.getDigSpeed(state, pos);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getDigSpeed(state, pos));
 		}
 	}
 
@@ -684,7 +861,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.canHarvestBlock(state);
 		} else {
-			return m_realPlayer.canHarvestBlock(state);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.canHarvestBlock(state));
 		}
 	}
 
@@ -693,7 +871,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.readEntityFromNBT(compound);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.readEntityFromNBT(compound);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -702,7 +882,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.writeEntityToNBT(compound);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.writeEntityToNBT(compound);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -711,7 +893,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.attackEntityFrom(source, amount);
 		} else {
-			return m_realPlayer.attackEntityFrom(source, amount);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.attackEntityFrom(source, amount));
 		}
 	}
 
@@ -720,7 +903,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.canAttackPlayer(other);
 		} else {
-			return m_realPlayer.canAttackPlayer(other);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.canAttackPlayer(other));
 		}
 	}
 
@@ -729,7 +913,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getArmorVisibility();
 		} else {
-			return m_realPlayer.getArmorVisibility();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getArmorVisibility());
 		}
 	}
 
@@ -738,7 +923,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.openEditSign(signTile);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.openEditSign(signTile);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -747,7 +934,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.displayGuiEditCommandCart(commandBlock);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.displayGuiEditCommandCart(commandBlock);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -756,7 +945,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.displayGuiCommandBlock(commandBlock);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.displayGuiCommandBlock(commandBlock);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -765,7 +956,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.openEditStructure(structure);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.openEditStructure(structure);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -774,7 +967,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.displayVillagerTradeGui(villager);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.displayVillagerTradeGui(villager);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -783,7 +978,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.displayGUIChest(chestInventory);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.displayGUIChest(chestInventory);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -792,7 +989,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.openGuiHorseInventory(horse, inventoryIn);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.openGuiHorseInventory(horse, inventoryIn);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -801,7 +1000,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.displayGui(guiOwner);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.displayGui(guiOwner);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -810,7 +1011,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.openBook(stack, hand);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.openBook(stack, hand);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -819,7 +1022,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.interactOn(p_190775_1_, p_190775_2_);
 		} else {
-			return m_realPlayer.interactOn(p_190775_1_, p_190775_2_);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.interactOn(p_190775_1_, p_190775_2_));
 		}
 	}
 
@@ -828,7 +1032,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getYOffset();
 		} else {
-			return m_realPlayer.getYOffset();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getYOffset());
 		}
 	}
 
@@ -837,7 +1042,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.dismountRidingEntity();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.dismountRidingEntity();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -846,7 +1053,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.attackTargetEntityWithCurrentItem(targetEntity);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.attackTargetEntityWithCurrentItem(targetEntity);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -855,7 +1064,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.disableShield(p_190777_1_);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.disableShield(p_190777_1_);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -864,7 +1075,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.onCriticalHit(entityHit);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.onCriticalHit(entityHit);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -873,7 +1086,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.onEnchantmentCritical(entityHit);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.onEnchantmentCritical(entityHit);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -882,7 +1097,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.spawnSweepParticles();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.spawnSweepParticles();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -891,7 +1108,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.respawnPlayer();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.respawnPlayer();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -900,7 +1119,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setDead();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setDead();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -909,6 +1130,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isEntityInsideOpaqueBlock();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isEntityInsideOpaqueBlock();
 		}
 	}
@@ -918,6 +1140,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isUser();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isUser();
 		}
 	}
@@ -927,7 +1150,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getGameProfile();
 		} else {
-			return m_realPlayer.getGameProfile();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getGameProfile());
 		}
 	}
 
@@ -936,7 +1160,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.trySleep(bedLocation);
 		} else {
-			return m_realPlayer.trySleep(bedLocation);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.trySleep(bedLocation));
 		}
 	}
 
@@ -945,7 +1170,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.wakeUpPlayer(immediately, updateWorldFlag, setSpawn);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.wakeUpPlayer(immediately, updateWorldFlag, setSpawn);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -954,7 +1181,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getBedOrientationInDegrees();
 		} else {
-			return m_realPlayer.getBedOrientationInDegrees();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getBedOrientationInDegrees());
 		}
 	}
 
@@ -972,6 +1200,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isPlayerFullyAsleep();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isPlayerFullyAsleep();
 		}
 	}
@@ -981,7 +1210,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getSleepTimer();
 		} else {
-			return m_realPlayer.getSleepTimer();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getSleepTimer());
 		}
 	}
 
@@ -990,7 +1220,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.sendStatusMessage(chatComponent, actionBar);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.sendStatusMessage(chatComponent, actionBar);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -999,7 +1231,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getBedLocation();
 		} else {
-			return m_realPlayer.getBedLocation();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getBedLocation());
 		}
 	}
 
@@ -1009,6 +1242,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isSpawnForced();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isSpawnForced();
 		}
 	}
@@ -1018,7 +1252,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setSpawnPoint(pos, forced);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setSpawnPoint(pos, forced);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1027,7 +1263,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.addStat(stat);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.addStat(stat);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1036,7 +1274,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.addStat(stat, amount);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.addStat(stat, amount);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1045,7 +1285,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.takeStat(stat);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.takeStat(stat);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1054,7 +1296,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.unlockRecipes(p_192021_1_);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.unlockRecipes(p_192021_1_);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1063,7 +1307,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.unlockRecipes(p_193102_1_);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.unlockRecipes(p_193102_1_);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1072,7 +1318,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.resetRecipes(p_192022_1_);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.resetRecipes(p_192022_1_);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1081,7 +1329,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.jump();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.jump();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1090,7 +1340,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.travel(p_191986_1_, p_191986_2_, p_191986_3_);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.travel(p_191986_1_, p_191986_2_, p_191986_3_);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1099,7 +1351,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getAIMoveSpeed();
 		} else {
-			return m_realPlayer.getAIMoveSpeed();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getAIMoveSpeed());
 		}
 	}
 
@@ -1108,7 +1361,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.addMovementStat(p_71000_1_, p_71000_3_, p_71000_5_);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.addMovementStat(p_71000_1_, p_71000_3_, p_71000_5_);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1117,7 +1372,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.fall(distance, damageMultiplier);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.fall(distance, damageMultiplier);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1126,7 +1383,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.onKillEntity(entityLivingIn);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.onKillEntity(entityLivingIn);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1135,7 +1394,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setInWeb();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setInWeb();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1144,7 +1405,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.addExperience(amount);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.addExperience(amount);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1153,7 +1416,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getXPSeed();
 		} else {
-			return m_realPlayer.getXPSeed();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getXPSeed());
 		}
 	}
 
@@ -1162,7 +1426,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.onEnchant(enchantedItem, cost);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.onEnchant(enchantedItem, cost);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1171,7 +1437,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.addExperienceLevel(levels);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.addExperienceLevel(levels);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1180,7 +1448,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.xpBarCap();
 		} else {
-			return m_realPlayer.xpBarCap();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.xpBarCap());
 		}
 	}
 
@@ -1189,7 +1458,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.addExhaustion(exhaustion);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.addExhaustion(exhaustion);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1198,7 +1469,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getFoodStats();
 		} else {
-			return m_realPlayer.getFoodStats();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getFoodStats());
 		}
 	}
 
@@ -1207,7 +1479,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.canEat(ignoreHunger);
 		} else {
-			return m_realPlayer.canEat(ignoreHunger);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.canEat(ignoreHunger));
 		}
 	}
 
@@ -1216,7 +1489,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.shouldHeal();
 		} else {
-			return m_realPlayer.shouldHeal();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.shouldHeal());
 		}
 	}
 
@@ -1225,6 +1499,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isAllowEdit();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isAllowEdit();
 		}
 	}
@@ -1243,7 +1518,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getAlwaysRenderNameTagForRender();
 		} else {
-			return m_realPlayer.getAlwaysRenderNameTagForRender();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getAlwaysRenderNameTagForRender());
 		}
 	}
 
@@ -1252,7 +1528,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.sendPlayerAbilities();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.sendPlayerAbilities();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1261,7 +1539,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setGameType(gameType);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setGameType(gameType);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1270,7 +1550,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getName();
 		} else {
-			return m_realPlayer.getName();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getName());
 		}
 	}
 
@@ -1279,7 +1560,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getInventoryEnderChest();
 		} else {
-			return m_realPlayer.getInventoryEnderChest();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getInventoryEnderChest());
 		}
 	}
 
@@ -1288,7 +1570,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getItemStackFromSlot(slotIn);
 		} else {
-			return m_realPlayer.getItemStackFromSlot(slotIn);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getItemStackFromSlot(slotIn));
 		}
 	}
 
@@ -1297,7 +1580,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setItemStackToSlot(slotIn, stack);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setItemStackToSlot(slotIn, stack);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1306,7 +1591,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.addItemStackToInventory(p_191521_1_);
 		} else {
-			return m_realPlayer.addItemStackToInventory(p_191521_1_);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.addItemStackToInventory(p_191521_1_));
 		}
 	}
 
@@ -1315,7 +1601,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getHeldEquipment();
 		} else {
-			return m_realPlayer.getHeldEquipment();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getHeldEquipment());
 		}
 	}
 
@@ -1324,7 +1611,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getArmorInventoryList();
 		} else {
-			return m_realPlayer.getArmorInventoryList();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getArmorInventoryList());
 		}
 	}
 
@@ -1333,7 +1621,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.addShoulderEntity(p_192027_1_);
 		} else {
-			return m_realPlayer.addShoulderEntity(p_192027_1_);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.addShoulderEntity(p_192027_1_));
 		}
 	}
 
@@ -1342,6 +1631,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isInvisibleToPlayer(player);
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isInvisibleToPlayer(player);
 		}
 	}
@@ -1351,6 +1641,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return false;
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isSpectator();
 		}
 	}
@@ -1369,6 +1660,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isPushedByWater();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isPushedByWater();
 		}
 	}
@@ -1378,7 +1670,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getWorldScoreboard();
 		} else {
-			return m_realPlayer.getWorldScoreboard();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getWorldScoreboard());
 		}
 	}
 
@@ -1387,7 +1680,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getTeam();
 		} else {
-			return m_realPlayer.getTeam();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getTeam());
 		}
 	}
 
@@ -1396,7 +1690,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getDisplayName();
 		} else {
-			return m_realPlayer.getDisplayName();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getDisplayName());
 		}
 	}
 
@@ -1405,7 +1700,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getEyeHeight();
 		} else {
-			return m_realPlayer.getEyeHeight();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getEyeHeight());
 		}
 	}
 
@@ -1414,7 +1710,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setAbsorptionAmount(amount);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setAbsorptionAmount(amount);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1423,7 +1721,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getAbsorptionAmount();
 		} else {
-			return m_realPlayer.getAbsorptionAmount();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getAbsorptionAmount());
 		}
 	}
 
@@ -1432,7 +1731,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.canOpen(code);
 		} else {
-			return m_realPlayer.canOpen(code);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.canOpen(code));
 		}
 	}
 
@@ -1441,6 +1741,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isWearing(part);
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isWearing(part);
 		}
 	}
@@ -1450,7 +1751,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.sendCommandFeedback();
 		} else {
-			return m_realPlayer.sendCommandFeedback();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.sendCommandFeedback());
 		}
 	}
 
@@ -1459,7 +1761,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.replaceItemInInventory(inventorySlot, itemStackIn);
 		} else {
-			return m_realPlayer.replaceItemInInventory(inventorySlot, itemStackIn);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.replaceItemInInventory(inventorySlot, itemStackIn));
 		}
 	}
 
@@ -1468,7 +1771,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.hasReducedDebug();
 		} else {
-			return m_realPlayer.hasReducedDebug();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.hasReducedDebug());
 		}
 	}
 
@@ -1477,7 +1781,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setReducedDebug(reducedDebug);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setReducedDebug(reducedDebug);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1486,7 +1792,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getPrimaryHand();
 		} else {
-			return m_realPlayer.getPrimaryHand();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getPrimaryHand());
 		}
 	}
 
@@ -1495,7 +1802,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setPrimaryHand(hand);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setPrimaryHand(hand);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1504,7 +1813,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getLeftShoulderEntity();
 		} else {
-			return m_realPlayer.getLeftShoulderEntity();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getLeftShoulderEntity());
 		}
 	}
 
@@ -1513,7 +1823,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getRightShoulderEntity();
 		} else {
-			return m_realPlayer.getRightShoulderEntity();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getRightShoulderEntity());
 		}
 	}
 
@@ -1522,7 +1833,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getCooldownPeriod();
 		} else {
-			return m_realPlayer.getCooldownPeriod();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getCooldownPeriod());
 		}
 	}
 
@@ -1531,7 +1843,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getCooledAttackStrength(adjustTicks);
 		} else {
-			return m_realPlayer.getCooledAttackStrength(adjustTicks);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getCooledAttackStrength(adjustTicks));
 		}
 	}
 
@@ -1540,7 +1853,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.resetCooldown();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.resetCooldown();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1549,7 +1864,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getCooldownTracker();
 		} else {
-			return m_realPlayer.getCooldownTracker();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getCooldownTracker());
 		}
 	}
 
@@ -1558,7 +1874,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.applyEntityCollision(entityIn);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.applyEntityCollision(entityIn);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1567,7 +1885,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getLuck();
 		} else {
-			return m_realPlayer.getLuck();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getLuck());
 		}
 	}
 
@@ -1576,7 +1895,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.canUseCommandBlock();
 		} else {
-			return m_realPlayer.canUseCommandBlock();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.canUseCommandBlock());
 		}
 	}
 
@@ -1585,7 +1905,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.openGui(mod, modGuiId, world, x, y, z);
 		} else {
+ 			syncToRealPlayer();
 			m_realPlayer.openGui(mod, modGuiId, world, x, y, z);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1594,7 +1916,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getBedLocation(dimension);
 		} else {
-			return m_realPlayer.getBedLocation(dimension);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getBedLocation(dimension));
 		}
 	}
 
@@ -1603,6 +1926,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isSpawnForced(dimension);
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isSpawnForced(dimension);
 		}
 	}
@@ -1612,7 +1936,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setSpawnChunk(pos, forced, dimension);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setSpawnChunk(pos, forced, dimension);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1621,7 +1947,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getDefaultEyeHeight();
 		} else {
-			return m_realPlayer.getDefaultEyeHeight();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getDefaultEyeHeight());
 		}
 	}
 
@@ -1630,7 +1957,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getDisplayNameString();
 		} else {
-			return m_realPlayer.getDisplayNameString();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getDisplayNameString());
 		}
 	}
 
@@ -1639,7 +1967,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.refreshDisplayName();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.refreshDisplayName();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1648,7 +1978,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.addPrefix(prefix);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.addPrefix(prefix);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1657,7 +1989,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.addSuffix(suffix);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.addSuffix(suffix);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1666,7 +2000,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getPrefixes();
 		} else {
-			return m_realPlayer.getPrefixes();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getPrefixes());
 		}
 	}
 
@@ -1675,7 +2010,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getSuffixes();
 		} else {
-			return m_realPlayer.getSuffixes();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getSuffixes());
 		}
 	}
 
@@ -1684,7 +2020,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getCapability(capability, facing);
 		} else {
-			return m_realPlayer.getCapability(capability, facing);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getCapability(capability, facing));
 		}
 	}
 
@@ -1693,7 +2030,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.hasCapability(capability, facing);
 		} else {
-			return m_realPlayer.hasCapability(capability, facing);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.hasCapability(capability, facing));
 		}
 	}
 
@@ -1702,7 +2040,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.hasSpawnDimension();
 		} else {
-			return m_realPlayer.hasSpawnDimension();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.hasSpawnDimension());
 		}
 	}
 
@@ -1711,7 +2050,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getSpawnDimension();
 		} else {
-			return m_realPlayer.getSpawnDimension();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getSpawnDimension());
 		}
 	}
 
@@ -1720,7 +2060,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setSpawnDimension(dimension);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setSpawnDimension(dimension);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1729,7 +2071,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.onKillCommand();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.onKillCommand();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1738,7 +2082,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.canBreatheUnderwater();
 		} else {
-			return m_realPlayer.canBreatheUnderwater();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.canBreatheUnderwater());
 		}
 	}
 
@@ -1747,7 +2092,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.onEntityUpdate();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.onEntityUpdate();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1756,6 +2103,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isChild();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isChild();
 		}
 	}
@@ -1765,7 +2113,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getRNG();
 		} else {
-			return m_realPlayer.getRNG();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getRNG());
 		}
 	}
 
@@ -1774,7 +2123,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getRevengeTarget();
 		} else {
-			return m_realPlayer.getRevengeTarget();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getRevengeTarget());
 		}
 	}
 
@@ -1783,7 +2133,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getRevengeTimer();
 		} else {
-			return m_realPlayer.getRevengeTimer();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getRevengeTimer());
 		}
 	}
 
@@ -1792,7 +2143,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setRevengeTarget(livingBase);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setRevengeTarget(livingBase);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1801,7 +2154,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getLastAttackedEntity();
 		} else {
-			return m_realPlayer.getLastAttackedEntity();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getLastAttackedEntity());
 		}
 	}
 
@@ -1810,7 +2164,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getLastAttackedEntityTime();
 		} else {
-			return m_realPlayer.getLastAttackedEntityTime();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getLastAttackedEntityTime());
 		}
 	}
 
@@ -1819,7 +2174,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setLastAttackedEntity(entityIn);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setLastAttackedEntity(entityIn);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1828,7 +2185,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getIdleTime();
 		} else {
-			return m_realPlayer.getIdleTime();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getIdleTime());
 		}
 	}
 
@@ -1837,7 +2195,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.clearActivePotions();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.clearActivePotions();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1846,7 +2206,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getActivePotionEffects();
 		} else {
-			return m_realPlayer.getActivePotionEffects();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getActivePotionEffects());
 		}
 	}
 
@@ -1855,7 +2216,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getActivePotionMap();
 		} else {
-			return m_realPlayer.getActivePotionMap();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getActivePotionMap());
 		}
 	}
 
@@ -1864,6 +2226,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isPotionActive(potionIn);
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isPotionActive(potionIn);
 		}
 	}
@@ -1873,7 +2236,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getActivePotionEffect(potionIn);
 		} else {
-			return m_realPlayer.getActivePotionEffect(potionIn);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getActivePotionEffect(potionIn));
 		}
 	}
 
@@ -1882,7 +2246,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.addPotionEffect(potioneffectIn);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.addPotionEffect(potioneffectIn);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1891,6 +2257,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isPotionApplicable(potioneffectIn);
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isPotionApplicable(potioneffectIn);
 		}
 	}
@@ -1900,6 +2267,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isEntityUndead();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isEntityUndead();
 		}
 	}
@@ -1909,7 +2277,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.removeActivePotionEffect(potioneffectin);
 		} else {
-			return m_realPlayer.removeActivePotionEffect(potioneffectin);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.removeActivePotionEffect(potioneffectin));
 		}
 	}
 
@@ -1918,7 +2287,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.removePotionEffect(potionIn);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.removePotionEffect(potionIn);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1927,7 +2298,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.heal(healAmount);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.heal(healAmount);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1936,7 +2309,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setHealth(health);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setHealth(health);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1945,7 +2320,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getLastDamageSource();
 		} else {
-			return m_realPlayer.getLastDamageSource();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getLastDamageSource());
 		}
 	}
 
@@ -1954,7 +2330,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.renderBrokenItemStack(stack);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.renderBrokenItemStack(stack);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1963,7 +2341,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.knockBack(entityIn, strength, xRatio, zRatio);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.knockBack(entityIn, strength, xRatio, zRatio);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1972,6 +2352,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isOnLadder();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isOnLadder();
 		}
 	}
@@ -1981,6 +2362,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isEntityAlive();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isEntityAlive();
 		}
 	}
@@ -1990,7 +2372,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.performHurtAnimation();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.performHurtAnimation();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -1999,7 +2383,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getTotalArmorValue();
 		} else {
-			return m_realPlayer.getTotalArmorValue();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getTotalArmorValue());
 		}
 	}
 
@@ -2008,7 +2393,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getCombatTracker();
 		} else {
-			return m_realPlayer.getCombatTracker();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getCombatTracker());
 		}
 	}
 
@@ -2017,7 +2403,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getAttackingEntity();
 		} else {
-			return m_realPlayer.getAttackingEntity();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getAttackingEntity());
 		}
 	}
 
@@ -2026,7 +2413,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.swingArm(hand);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.swingArm(hand);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2035,7 +2424,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getEntityAttribute(attribute);
 		} else {
-			return m_realPlayer.getEntityAttribute(attribute);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getEntityAttribute(attribute));
 		}
 	}
 
@@ -2044,7 +2434,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getAttributeMap();
 		} else {
-			return m_realPlayer.getAttributeMap();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getAttributeMap());
 		}
 	}
 
@@ -2053,7 +2444,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getCreatureAttribute();
 		} else {
-			return m_realPlayer.getCreatureAttribute();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getCreatureAttribute());
 		}
 	}
 
@@ -2062,7 +2454,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getHeldItemMainhand();
 		} else {
-			return m_realPlayer.getHeldItemMainhand();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getHeldItemMainhand());
 		}
 	}
 
@@ -2071,7 +2464,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getHeldItemOffhand();
 		} else {
-			return m_realPlayer.getHeldItemOffhand();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getHeldItemOffhand());
 		}
 	}
 
@@ -2080,7 +2474,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getHeldItem(hand);
 		} else {
-			return m_realPlayer.getHeldItem(hand);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getHeldItem(hand));
 		}
 	}
 
@@ -2089,7 +2484,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setHeldItem(hand, stack);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setHeldItem(hand, stack);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2098,7 +2495,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.hasItemInSlot(p_190630_1_);
 		} else {
-			return m_realPlayer.hasItemInSlot(p_190630_1_);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.hasItemInSlot(p_190630_1_));
 		}
 	}
 
@@ -2107,7 +2505,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setSprinting(sprinting);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setSprinting(sprinting);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2116,7 +2516,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.dismountEntity(entityIn);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.dismountEntity(entityIn);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2125,7 +2527,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setAIMoveSpeed(speedIn);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setAIMoveSpeed(speedIn);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2134,7 +2538,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.attackEntityAsMob(entityIn);
 		} else {
-			return m_realPlayer.attackEntityAsMob(entityIn);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.attackEntityAsMob(entityIn));
 		}
 	}
 
@@ -2144,7 +2549,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setPositionAndRotationDirect(x, y, z, yaw, pitch, posRotationIncrements, teleport);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setPositionAndRotationDirect(x, y, z, yaw, pitch, posRotationIncrements, teleport);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2153,7 +2560,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setJumping(jumping);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setJumping(jumping);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2162,7 +2571,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.onItemPickup(entityIn, quantity);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.onItemPickup(entityIn, quantity);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2171,7 +2582,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.canEntityBeSeen(entityIn);
 		} else {
-			return m_realPlayer.canEntityBeSeen(entityIn);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.canEntityBeSeen(entityIn));
 		}
 	}
 
@@ -2180,7 +2592,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getSwingProgress(partialTickTime);
 		} else {
-			return m_realPlayer.getSwingProgress(partialTickTime);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getSwingProgress(partialTickTime));
 		}
 	}
 
@@ -2189,6 +2602,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isServerWorld();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isServerWorld();
 		}
 	}
@@ -2198,6 +2612,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.canBeCollidedWith();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.canBeCollidedWith();
 		}
 	}
@@ -2207,6 +2622,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.canBePushed();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.canBePushed();
 		}
 	}
@@ -2216,7 +2632,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getRotationYawHead();
 		} else {
-			return m_realPlayer.getRotationYawHead();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getRotationYawHead());
 		}
 	}
 
@@ -2225,7 +2642,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setRotationYawHead(rotation);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setRotationYawHead(rotation);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2234,7 +2653,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setRenderYawOffset(offset);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setRenderYawOffset(offset);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2243,7 +2664,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.sendEnterCombat();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.sendEnterCombat();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2252,7 +2675,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.sendEndCombat();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.sendEndCombat();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2261,7 +2686,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.curePotionEffects(curativeItem);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.curePotionEffects(curativeItem);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2270,7 +2697,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.shouldRiderFaceForward(player);
 		} else {
-			return m_realPlayer.shouldRiderFaceForward(player);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.shouldRiderFaceForward(player));
 		}
 	}
 
@@ -2279,6 +2707,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isHandActive();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isHandActive();
 		}
 	}
@@ -2288,7 +2717,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getActiveHand();
 		} else {
-			return m_realPlayer.getActiveHand();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getActiveHand());
 		}
 	}
 
@@ -2297,7 +2727,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setActiveHand(hand);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setActiveHand(hand);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2306,7 +2738,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.notifyDataManagerChange(key);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.notifyDataManagerChange(key);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2315,7 +2749,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getActiveItemStack();
 		} else {
-			return m_realPlayer.getActiveItemStack();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getActiveItemStack());
 		}
 	}
 
@@ -2324,7 +2759,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getItemInUseCount();
 		} else {
-			return m_realPlayer.getItemInUseCount();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getItemInUseCount());
 		}
 	}
 
@@ -2333,7 +2769,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getItemInUseMaxCount();
 		} else {
-			return m_realPlayer.getItemInUseMaxCount();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getItemInUseMaxCount());
 		}
 	}
 
@@ -2342,7 +2779,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.stopActiveHand();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.stopActiveHand();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2351,7 +2790,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.resetActiveHand();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.resetActiveHand();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2360,6 +2801,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isActiveItemStackBlocking();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isActiveItemStackBlocking();
 		}
 	}
@@ -2369,6 +2811,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isElytraFlying();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isElytraFlying();
 		}
 	}
@@ -2378,7 +2821,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getTicksElytraFlying();
 		} else {
-			return m_realPlayer.getTicksElytraFlying();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getTicksElytraFlying());
 		}
 	}
 
@@ -2387,7 +2831,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.attemptTeleport(x, y, z);
 		} else {
-			return m_realPlayer.attemptTeleport(x, y, z);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.attemptTeleport(x, y, z));
 		}
 	}
 
@@ -2396,7 +2841,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.canBeHitWithPotion();
 		} else {
-			return m_realPlayer.canBeHitWithPotion();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.canBeHitWithPotion());
 		}
 	}
 
@@ -2405,7 +2851,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.attackable();
 		} else {
-			return m_realPlayer.attackable();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.attackable());
 		}
 	}
 
@@ -2414,7 +2861,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setPartying(pos, p_191987_2_);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setPartying(pos, p_191987_2_);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2423,7 +2872,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getEntityId();
 		} else {
-			return m_realPlayer.getEntityId();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getEntityId());
 		}
 	}
 
@@ -2432,7 +2882,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setEntityId(id);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setEntityId(id);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2441,7 +2893,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getTags();
 		} else {
-			return m_realPlayer.getTags();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getTags());
 		}
 	}
 
@@ -2450,7 +2903,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.addTag(tag);
 		} else {
-			return m_realPlayer.addTag(tag);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.addTag(tag));
 		}
 	}
 
@@ -2459,7 +2913,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.removeTag(tag);
 		} else {
-			return m_realPlayer.removeTag(tag);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.removeTag(tag));
 		}
 	}
 
@@ -2468,7 +2923,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getDataManager();
 		} else {
-			return m_realPlayer.getDataManager();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getDataManager());
 		}
 	}
 
@@ -2495,7 +2951,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setDropItemsWhenDead(dropWhenDead);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setDropItemsWhenDead(dropWhenDead);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2504,7 +2962,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setPosition(x, y, z);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setPosition(x, y, z);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2513,7 +2973,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.turn(yaw, pitch);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.turn(yaw, pitch);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2522,7 +2984,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setFire(seconds);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setFire(seconds);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2531,7 +2995,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.extinguish();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.extinguish();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2540,6 +3006,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isOffsetPositionInLiquid(x, y, z);
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isOffsetPositionInLiquid(x, y, z);
 		}
 	}
@@ -2549,7 +3016,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.move(type, x, y, z);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.move(type, x, y, z);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2558,7 +3027,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.resetPositionToBB();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.resetPositionToBB();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2567,6 +3038,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isSilent();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isSilent();
 		}
 	}
@@ -2576,7 +3048,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setSilent(isSilent);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setSilent(isSilent);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2585,7 +3059,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.hasNoGravity();
 		} else {
-			return m_realPlayer.hasNoGravity();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.hasNoGravity());
 		}
 	}
 
@@ -2594,7 +3069,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setNoGravity(noGravity);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setNoGravity(noGravity);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2603,7 +3080,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getCollisionBoundingBox();
 		} else {
-			return m_realPlayer.getCollisionBoundingBox();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getCollisionBoundingBox());
 		}
 	}
 
@@ -2612,6 +3090,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isWet();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isWet();
 		}
 	}
@@ -2621,6 +3100,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isInWater();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isInWater();
 		}
 	}
@@ -2630,6 +3110,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isOverWater();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isOverWater();
 		}
 	}
@@ -2639,7 +3120,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.handleWaterMovement();
 		} else {
-			return m_realPlayer.handleWaterMovement();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.handleWaterMovement());
 		}
 	}
 
@@ -2648,7 +3130,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.spawnRunningParticles();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.spawnRunningParticles();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2657,6 +3141,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isInsideOfMaterial(materialIn);
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isInsideOfMaterial(materialIn);
 		}
 	}
@@ -2666,6 +3151,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isInLava();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isInLava();
 		}
 	}
@@ -2675,7 +3161,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.moveRelative(strafe, up, forward, friction);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.moveRelative(strafe, up, forward, friction);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2684,7 +3172,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getBrightnessForRender();
 		} else {
-			return m_realPlayer.getBrightnessForRender();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getBrightnessForRender());
 		}
 	}
 
@@ -2693,7 +3182,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getBrightness();
 		} else {
-			return m_realPlayer.getBrightness();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getBrightness());
 		}
 	}
 
@@ -2702,7 +3192,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setWorld(worldIn);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setWorld(worldIn);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2711,7 +3203,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setPositionAndRotation(x, y, z, yaw, pitch);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setPositionAndRotation(x, y, z, yaw, pitch);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2720,7 +3214,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.moveToBlockPosAndAngles(pos, rotationYawIn, rotationPitchIn);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.moveToBlockPosAndAngles(pos, rotationYawIn, rotationPitchIn);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2729,7 +3225,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setLocationAndAngles(x, y, z, yaw, pitch);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setLocationAndAngles(x, y, z, yaw, pitch);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2738,7 +3236,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.onCollideWithPlayer(entityIn);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.onCollideWithPlayer(entityIn);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2747,7 +3247,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.addVelocity(x, y, z);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.addVelocity(x, y, z);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2756,7 +3258,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getPositionEyes(partialTicks);
 		} else {
-			return m_realPlayer.getPositionEyes(partialTicks);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getPositionEyes(partialTicks));
 		}
 	}
 
@@ -2765,7 +3268,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.rayTrace(blockReachDistance, partialTicks);
 		} else {
-			return m_realPlayer.rayTrace(blockReachDistance, partialTicks);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.rayTrace(blockReachDistance, partialTicks));
 		}
 	}
 
@@ -2774,7 +3278,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.awardKillScore(p_191956_1_, p_191956_2_, p_191956_3_);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.awardKillScore(p_191956_1_, p_191956_2_, p_191956_3_);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2783,6 +3289,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isInRangeToRender3d(x, y, z);
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isInRangeToRender3d(x, y, z);
 		}
 	}
@@ -2792,6 +3299,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isInRangeToRenderDist(distance);
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isInRangeToRenderDist(distance);
 		}
 	}
@@ -2801,7 +3309,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.writeToNBTAtomically(compound);
 		} else {
-			return m_realPlayer.writeToNBTAtomically(compound);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.writeToNBTAtomically(compound));
 		}
 	}
 
@@ -2810,7 +3319,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.writeToNBTOptional(compound);
 		} else {
-			return m_realPlayer.writeToNBTOptional(compound);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.writeToNBTOptional(compound));
 		}
 	}
 
@@ -2819,7 +3329,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.writeToNBT(compound);
 		} else {
-			return m_realPlayer.writeToNBT(compound);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.writeToNBT(compound));
 		}
 	}
 
@@ -2828,7 +3339,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.readFromNBT(compound);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.readFromNBT(compound);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2837,7 +3350,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.dropItem(itemIn, size);
 		} else {
-			return m_realPlayer.dropItem(itemIn, size);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.dropItem(itemIn, size));
 		}
 	}
 
@@ -2846,7 +3360,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.dropItemWithOffset(itemIn, size, offsetY);
 		} else {
-			return m_realPlayer.dropItemWithOffset(itemIn, size, offsetY);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.dropItemWithOffset(itemIn, size, offsetY));
 		}
 	}
 
@@ -2855,7 +3370,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.entityDropItem(stack, offsetY);
 		} else {
-			return m_realPlayer.entityDropItem(stack, offsetY);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.entityDropItem(stack, offsetY));
 		}
 	}
 
@@ -2864,7 +3380,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.processInitialInteract(player, hand);
 		} else {
-			return m_realPlayer.processInitialInteract(player, hand);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.processInitialInteract(player, hand));
 		}
 	}
 
@@ -2873,7 +3390,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getCollisionBox(entityIn);
 		} else {
-			return m_realPlayer.getCollisionBox(entityIn);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getCollisionBox(entityIn));
 		}
 	}
 
@@ -2882,7 +3400,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.updatePassenger(passenger);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.updatePassenger(passenger);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2891,7 +3411,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.applyOrientationToEntity(entityToUpdate);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.applyOrientationToEntity(entityToUpdate);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2900,7 +3422,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getMountedYOffset();
 		} else {
-			return m_realPlayer.getMountedYOffset();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getMountedYOffset());
 		}
 	}
 
@@ -2909,7 +3432,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.startRiding(entityIn);
 		} else {
-			return m_realPlayer.startRiding(entityIn);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.startRiding(entityIn));
 		}
 	}
 
@@ -2918,7 +3442,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.startRiding(entityIn, force);
 		} else {
-			return m_realPlayer.startRiding(entityIn, force);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.startRiding(entityIn, force));
 		}
 	}
 
@@ -2927,7 +3452,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.removePassengers();
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.removePassengers();
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2936,7 +3463,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getCollisionBorderSize();
 		} else {
-			return m_realPlayer.getCollisionBorderSize();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getCollisionBorderSize());
 		}
 	}
 
@@ -2945,7 +3473,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getForward();
 		} else {
-			return m_realPlayer.getForward();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getForward());
 		}
 	}
 
@@ -2954,7 +3483,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setPortal(pos);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setPortal(pos);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2963,7 +3494,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setVelocity(x, y, z);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setVelocity(x, y, z);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -2972,7 +3505,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getEquipmentAndArmor();
 		} else {
-			return m_realPlayer.getEquipmentAndArmor();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getEquipmentAndArmor());
 		}
 	}
 
@@ -2981,6 +3515,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isBurning();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isBurning();
 		}
 	}
@@ -2990,6 +3525,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isRiding();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isRiding();
 		}
 	}
@@ -2999,6 +3535,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isBeingRidden();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isBeingRidden();
 		}
 	}
@@ -3008,6 +3545,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isSneaking();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isSneaking();
 		}
 	}
@@ -3017,7 +3555,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setSneaking(sneaking);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setSneaking(sneaking);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -3026,6 +3566,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isSprinting();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isSprinting();
 		}
 	}
@@ -3035,6 +3576,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isGlowing();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isGlowing();
 		}
 	}
@@ -3044,7 +3586,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setGlowing(glowingIn);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setGlowing(glowingIn);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -3053,6 +3597,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isInvisible();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isInvisible();
 		}
 	}
@@ -3062,6 +3607,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isOnSameTeam(entityIn);
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isOnSameTeam(entityIn);
 		}
 	}
@@ -3071,6 +3617,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isOnScoreboardTeam(teamIn);
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isOnScoreboardTeam(teamIn);
 		}
 	}
@@ -3080,7 +3627,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setInvisible(invisible);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setInvisible(invisible);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -3089,7 +3638,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getAir();
 		} else {
-			return m_realPlayer.getAir();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getAir());
 		}
 	}
 
@@ -3098,7 +3648,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setAir(air);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setAir(air);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -3107,7 +3659,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.onStruckByLightning(lightningBolt);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.onStruckByLightning(lightningBolt);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -3116,7 +3670,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getParts();
 		} else {
-			return m_realPlayer.getParts();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getParts());
 		}
 	}
 
@@ -3125,6 +3680,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isEntityEqual(entityIn);
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isEntityEqual(entityIn);
 		}
 	}
@@ -3134,6 +3690,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.canBeAttackedWithItem();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.canBeAttackedWithItem();
 		}
 	}
@@ -3143,7 +3700,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.hitByEntity(entityIn);
 		} else {
-			return m_realPlayer.hitByEntity(entityIn);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.hitByEntity(entityIn));
 		}
 	}
 
@@ -3152,7 +3710,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.toString();
 		} else {
-			return m_realPlayer.toString();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.toString());
 		}
 	}
 
@@ -3161,6 +3720,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isEntityInvulnerable(source);
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isEntityInvulnerable(source);
 		}
 	}
@@ -3170,7 +3730,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getIsInvulnerable();
 		} else {
-			return m_realPlayer.getIsInvulnerable();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getIsInvulnerable());
 		}
 	}
 
@@ -3179,7 +3740,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setEntityInvulnerable(isInvulnerable);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setEntityInvulnerable(isInvulnerable);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -3188,7 +3751,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.copyLocationAndAnglesFrom(entityIn);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.copyLocationAndAnglesFrom(entityIn);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -3197,7 +3762,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.changeDimension(dimensionIn);
 		} else {
-			return m_realPlayer.changeDimension(dimensionIn);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.changeDimension(dimensionIn));
 		}
 	}
 
@@ -3206,6 +3772,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isNonBoss();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isNonBoss();
 		}
 	}
@@ -3215,7 +3782,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getExplosionResistance(explosionIn, worldIn, pos, blockStateIn);
 		} else {
-			return m_realPlayer.getExplosionResistance(explosionIn, worldIn, pos, blockStateIn);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getExplosionResistance(explosionIn, worldIn, pos, blockStateIn));
 		}
 	}
 
@@ -3225,7 +3793,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.canExplosionDestroyBlock(explosionIn, worldIn, pos, blockStateIn, p_174816_5_);
 		} else {
-			return m_realPlayer.canExplosionDestroyBlock(explosionIn, worldIn, pos, blockStateIn, p_174816_5_);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.canExplosionDestroyBlock(explosionIn, worldIn, pos, blockStateIn, p_174816_5_));
 		}
 	}
 
@@ -3234,7 +3803,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getMaxFallHeight();
 		} else {
-			return m_realPlayer.getMaxFallHeight();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getMaxFallHeight());
 		}
 	}
 
@@ -3243,7 +3813,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getLastPortalVec();
 		} else {
-			return m_realPlayer.getLastPortalVec();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getLastPortalVec());
 		}
 	}
 
@@ -3252,7 +3823,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getTeleportDirection();
 		} else {
-			return m_realPlayer.getTeleportDirection();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getTeleportDirection());
 		}
 	}
 
@@ -3261,7 +3833,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.doesEntityNotTriggerPressurePlate();
 		} else {
-			return m_realPlayer.doesEntityNotTriggerPressurePlate();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.doesEntityNotTriggerPressurePlate());
 		}
 	}
 
@@ -3270,7 +3843,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.addEntityCrashInfo(category);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.addEntityCrashInfo(category);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -3279,7 +3854,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setUniqueId(uniqueIdIn);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setUniqueId(uniqueIdIn);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -3288,7 +3865,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.canRenderOnFire();
 		} else {
-			return m_realPlayer.canRenderOnFire();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.canRenderOnFire());
 		}
 	}
 
@@ -3297,7 +3875,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getUniqueID();
 		} else {
-			return m_realPlayer.getUniqueID();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getUniqueID());
 		}
 	}
 
@@ -3306,7 +3885,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getCachedUniqueIdString();
 		} else {
-			return m_realPlayer.getCachedUniqueIdString();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getCachedUniqueIdString());
 		}
 	}
 
@@ -3315,7 +3895,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setCustomNameTag(name);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setCustomNameTag(name);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -3324,7 +3906,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getCustomNameTag();
 		} else {
-			return m_realPlayer.getCustomNameTag();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getCustomNameTag());
 		}
 	}
 
@@ -3333,7 +3916,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.hasCustomName();
 		} else {
-			return m_realPlayer.hasCustomName();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.hasCustomName());
 		}
 	}
 
@@ -3342,7 +3926,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setAlwaysRenderNameTag(alwaysRenderNameTag);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setAlwaysRenderNameTag(alwaysRenderNameTag);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -3351,7 +3937,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getAlwaysRenderNameTag();
 		} else {
-			return m_realPlayer.getAlwaysRenderNameTag();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getAlwaysRenderNameTag());
 		}
 	}
 
@@ -3360,7 +3947,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setPositionAndUpdate(x, y, z);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setPositionAndUpdate(x, y, z);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -3369,7 +3958,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getHorizontalFacing();
 		} else {
-			return m_realPlayer.getHorizontalFacing();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getHorizontalFacing());
 		}
 	}
 
@@ -3378,7 +3968,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getAdjustedHorizontalFacing();
 		} else {
-			return m_realPlayer.getAdjustedHorizontalFacing();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getAdjustedHorizontalFacing());
 		}
 	}
 
@@ -3387,6 +3978,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isSpectatedByPlayer(player);
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isSpectatedByPlayer(player);
 		}
 	}
@@ -3396,7 +3988,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getEntityBoundingBox();
 		} else {
-			return m_realPlayer.getEntityBoundingBox();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getEntityBoundingBox());
 		}
 	}
 
@@ -3405,7 +3998,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getRenderBoundingBox();
 		} else {
-			return m_realPlayer.getRenderBoundingBox();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getRenderBoundingBox());
 		}
 	}
 
@@ -3414,7 +4008,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setEntityBoundingBox(bb);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setEntityBoundingBox(bb);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -3423,6 +4019,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isOutsideBorder();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isOutsideBorder();
 		}
 	}
@@ -3432,7 +4029,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setOutsideBorder(outsideBorder);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setOutsideBorder(outsideBorder);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -3441,7 +4040,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.sendMessage(component);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.sendMessage(component);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -3450,7 +4051,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.canUseCommand(permLevel, commandName);
 		} else {
-			return m_realPlayer.canUseCommand(permLevel, commandName);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.canUseCommand(permLevel, commandName));
 		}
 	}
 
@@ -3459,7 +4061,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getCommandSenderEntity();
 		} else {
-			return m_realPlayer.getCommandSenderEntity();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getCommandSenderEntity());
 		}
 	}
 
@@ -3468,7 +4071,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setCommandStat(type, amount);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setCommandStat(type, amount);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -3477,7 +4082,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getServer();
 		} else {
-			return m_realPlayer.getServer();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getServer());
 		}
 	}
 
@@ -3486,7 +4092,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getCommandStats();
 		} else {
-			return m_realPlayer.getCommandStats();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getCommandStats());
 		}
 	}
 
@@ -3495,7 +4102,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.setCommandStats(entityIn);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.setCommandStats(entityIn);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -3504,7 +4113,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.applyPlayerInteraction(player, vec, hand);
 		} else {
-			return m_realPlayer.applyPlayerInteraction(player, vec, hand);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.applyPlayerInteraction(player, vec, hand));
 		}
 	}
 
@@ -3513,6 +4123,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isImmuneToExplosions();
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isImmuneToExplosions();
 		}
 	}
@@ -3522,7 +4133,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getEntityData();
 		} else {
-			return m_realPlayer.getEntityData();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getEntityData());
 		}
 	}
 
@@ -3531,7 +4143,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.shouldRiderSit();
 		} else {
-			return m_realPlayer.shouldRiderSit();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.shouldRiderSit());
 		}
 	}
 
@@ -3540,7 +4153,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getPickedResult(target);
 		} else {
-			return m_realPlayer.getPickedResult(target);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getPickedResult(target));
 		}
 	}
 
@@ -3549,7 +4163,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getPersistentID();
 		} else {
-			return m_realPlayer.getPersistentID();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getPersistentID());
 		}
 	}
 
@@ -3558,7 +4173,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.shouldRenderInPass(pass);
 		} else {
-			return m_realPlayer.shouldRenderInPass(pass);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.shouldRenderInPass(pass));
 		}
 	}
 
@@ -3567,6 +4183,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isCreatureType(type, forSpawnCount);
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isCreatureType(type, forSpawnCount);
 		}
 	}
@@ -3576,7 +4193,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.canRiderInteract();
 		} else {
-			return m_realPlayer.canRiderInteract();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.canRiderInteract());
 		}
 	}
 
@@ -3585,7 +4203,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.shouldDismountInWater(rider);
 		} else {
-			return m_realPlayer.shouldDismountInWater(rider);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.shouldDismountInWater(rider));
 		}
 	}
 
@@ -3594,7 +4213,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.deserializeNBT(nbt);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.deserializeNBT(nbt);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -3603,7 +4224,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.serializeNBT();
 		} else {
-			return m_realPlayer.serializeNBT();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.serializeNBT());
 		}
 	}
 
@@ -3612,7 +4234,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.canTrample(world, block, pos, fallDistance);
 		} else {
-			return m_realPlayer.canTrample(world, block, pos, fallDistance);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.canTrample(world, block, pos, fallDistance));
 		}
 	}
 
@@ -3621,7 +4244,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.addTrackingPlayer(player);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.addTrackingPlayer(player);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -3630,7 +4255,9 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			super.removeTrackingPlayer(player);
 		} else {
+			syncToRealPlayer();
 			m_realPlayer.removeTrackingPlayer(player);
+			syncPublicFieldsFromReal();
 		}
 	}
 
@@ -3639,7 +4266,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getRotatedYaw(transformRotation);
 		} else {
-			return m_realPlayer.getRotatedYaw(transformRotation);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getRotatedYaw(transformRotation));
 		}
 	}
 
@@ -3648,7 +4276,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getMirroredYaw(transformMirror);
 		} else {
-			return m_realPlayer.getMirroredYaw(transformMirror);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getMirroredYaw(transformMirror));
 		}
 	}
 
@@ -3657,7 +4286,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.ignoreItemEntityData();
 		} else {
-			return m_realPlayer.ignoreItemEntityData();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.ignoreItemEntityData());
 		}
 	}
 
@@ -3666,7 +4296,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.setPositionNonDirty();
 		} else {
-			return m_realPlayer.setPositionNonDirty();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.setPositionNonDirty());
 		}
 	}
 
@@ -3675,7 +4306,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getControllingPassenger();
 		} else {
-			return m_realPlayer.getControllingPassenger();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getControllingPassenger());
 		}
 	}
 
@@ -3684,7 +4316,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getPassengers();
 		} else {
-			return m_realPlayer.getPassengers();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getPassengers());
 		}
 	}
 
@@ -3693,6 +4326,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isPassenger(entityIn);
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isPassenger(entityIn);
 		}
 	}
@@ -3702,7 +4336,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getRecursivePassengers();
 		} else {
-			return m_realPlayer.getRecursivePassengers();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getRecursivePassengers());
 		}
 	}
 
@@ -3711,7 +4346,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getRecursivePassengersByType(entityClass);
 		} else {
-			return m_realPlayer.getRecursivePassengersByType(entityClass);
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getRecursivePassengersByType(entityClass));
 		}
 	}
 
@@ -3720,7 +4356,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getLowestRidingEntity();
 		} else {
-			return m_realPlayer.getLowestRidingEntity();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getLowestRidingEntity());
 		}
 	}
 
@@ -3729,6 +4366,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 				return super.isRidingSameEntity(entityIn);
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isRidingSameEntity(entityIn);
 		}
 	}
@@ -3738,6 +4376,7 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.isRidingOrBeingRiddenBy(entityIn);
 		} else {
+			syncToRealPlayer();
 			return m_realPlayer.isRidingOrBeingRiddenBy(entityIn);
 		}
 	}
@@ -3747,7 +4386,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.canPassengerSteer();
 		} else {
-			return m_realPlayer.canPassengerSteer();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.canPassengerSteer());
 		}
 	}
 
@@ -3756,7 +4396,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getRidingEntity();
 		} else {
-			return m_realPlayer.getRidingEntity();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getRidingEntity());
 		}
 	}
 
@@ -3765,7 +4406,8 @@ public class EntityPlayerMPProxy extends EntityPlayerMP {
 		if (m_realPlayer == null) {
 			return super.getPushReaction();
 		} else {
-			return m_realPlayer.getPushReaction();
+			syncToRealPlayer();
+			return syncPublicFieldsFromRealAndReturn(m_realPlayer.getPushReaction());
 		}
 	}
 

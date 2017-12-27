@@ -41,9 +41,16 @@ public class HookedEntityPlayerMP extends EntityPlayerMP {
     	     new String[] {"net.minecraft"}
     	));
 
+//	private final List<Integer> entityRemoveQueue;
+//	private final PlayerAdvancements advancements;
+
+	@SuppressWarnings("unchecked")
 	public HookedEntityPlayerMP(MinecraftServer server, WorldServer worldIn, GameProfile profile,
-			PlayerInteractionManager interactionManagerIn) {
+			PlayerInteractionManager interactionManagerIn) throws IllegalAccessException {
 		super(server, worldIn, profile, interactionManagerIn);
+
+//		entityRemoveQueue = InjectionHandler.readFieldOfType(EntityPlayerMP.class, this, List.class);
+//		advancements= InjectionHandler.readFieldOfType(EntityPlayerMP.class, this, PlayerAdvancements.class);
 	}
 
 	public void SetRemoteFilter(String modClass, WorldServer proxyWorld, BlockPos targetPos,
@@ -154,5 +161,122 @@ public class HookedEntityPlayerMP extends EntityPlayerMP {
 		}
 
 	}
+
+	// removed for now -- there is a second check in EntityPlayer::OnUpdate()!
+
+//	private static Field respawnInvulnerabilityTicksField = ReflectionHelper.findField(EntityPlayerMP.class, "respawnInvulnerabilityTicks", "field_147101_bU");
+//	private static Field levitationStartPosField = ReflectionHelper.findField(EntityPlayerMP.class, "levitationStartPos", "field_193107_ct");
+//	private static Field levitatingSinceField = ReflectionHelper.findField(EntityPlayerMP.class, "levitatingSince", "field_193108_cu");
+//
+//	@Override
+//	public void onUpdate() {
+//	    this.interactionManager.updateBlockRemoving();
+//
+//	    int respawnInvulnerabilityTicks;
+//		try {
+//			respawnInvulnerabilityTicks = InjectionHandler.readField(respawnInvulnerabilityTicksField, this);
+//	        --respawnInvulnerabilityTicks;
+//	        InjectionHandler.writeField(respawnInvulnerabilityTicksField, this, respawnInvulnerabilityTicks);
+//		} catch (IllegalAccessException e) {
+//			Util.logger.logException("Unable to set respawnInvulnerabilityTicks for EntityPlayerMP.onUpdate()", e);
+//		}
+//
+//        if (this.hurtResistantTime > 0)
+//        {
+//            --this.hurtResistantTime;
+//        }
+//
+//        this.openContainer.detectAndSendChanges();
+//
+//        // just in case they check location directly...
+//        double oldPosX = this.posX;
+//        double oldPosY = this.posY;
+//        double oldPosZ = this.posZ;
+//
+//        if (this.m_modPrefix != null)
+//        {
+//        	this.posX = m_RemotePosX;
+//        	this.posY = m_RemotePosY;
+//        	this.posZ = m_RemotePosZ;
+//        }
+//
+//        if (!this.world.isRemote && this.openContainer != null && !this.openContainer.canInteractWith(this))
+//        {
+//            // fix the location for closeScreen, just in case
+//            if (this.m_modPrefix != null)
+//            {
+//            	this.posX = oldPosX;
+//            	this.posY = oldPosY;
+//            	this.posZ = oldPosZ;
+//            }
+//
+//            this.closeScreen();
+//            this.openContainer = this.inventoryContainer;
+//        }
+//
+//        // fix the location
+//        if (this.m_modPrefix != null)
+//        {
+//        	this.posX = oldPosX;
+//        	this.posY = oldPosY;
+//        	this.posZ = oldPosZ;
+//        }
+//
+//        while (!this.entityRemoveQueue.isEmpty())
+//        {
+//            int i = Math.min(this.entityRemoveQueue.size(), Integer.MAX_VALUE);
+//            int[] aint = new int[i];
+//            Iterator<Integer> iterator = this.entityRemoveQueue.iterator();
+//            int j = 0;
+//
+//            while (iterator.hasNext() && j < i)
+//            {
+//                aint[j++] = iterator.next().intValue();
+//                iterator.remove();
+//            }
+//
+//            this.connection.sendPacket(new SPacketDestroyEntities(aint));
+//        }
+//
+//        Entity entity = this.getSpectatingEntity();
+//
+//        if (entity != this)
+//        {
+//            if (entity.isEntityAlive())
+//            {
+//                this.setPositionAndRotation(entity.posX, entity.posY, entity.posZ, entity.rotationYaw, entity.rotationPitch);
+//                this.mcServer.getPlayerList().serverUpdateMovingPlayer(this);
+//
+//                if (this.isSneaking())
+//                {
+//                    this.setSpectatingEntity(this);
+//                }
+//            }
+//            else
+//            {
+//                this.setSpectatingEntity(this);
+//            }
+//        }
+//
+//        CriteriaTriggers.TICK.trigger(this);
+//
+//		try {
+//
+//	        Vec3d levitationStartPos = InjectionHandler.readField(levitationStartPosField, this);
+//	        int levitatingSince = InjectionHandler.readField(levitatingSinceField, this);
+//
+//	        if (levitationStartPos != null)
+//	        {
+//	            CriteriaTriggers.LEVITATION.trigger(this, levitationStartPos, this.ticksExisted - levitatingSince);
+//	        }
+//
+//		} catch (IllegalAccessException e) {
+//			Util.logger.logException("Unable to read levitationStartPos/levitatingSince for EntityPlayerMP.onUpdate()", e);
+//		}
+//
+//        this.advancements.flushDirty(this);
+//	}
+
+
 
 }

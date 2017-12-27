@@ -7,8 +7,10 @@ import java.util.UUID;
 import com.google.common.collect.Lists;
 import com.mojang.authlib.GameProfile;
 
+import clayborn.universalremote.hooks.entity.EntityPlayerMPProxy;
 import clayborn.universalremote.hooks.entity.HookedEntityPlayerMP;
 import clayborn.universalremote.util.InjectionHandler;
+import clayborn.universalremote.util.Util;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.network.play.server.SPacketChangeGameState;
@@ -23,6 +25,7 @@ import net.minecraft.server.management.PlayerList;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraft.world.GameType;
+import net.minecraft.world.Teleporter;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
 
@@ -87,7 +90,12 @@ public class HookedIntegratedPlayerList extends IntegratedPlayerList {
             playerinteractionmanager = new PlayerInteractionManager(this.mcServer.getWorld(0));
         }
 
-        return new HookedEntityPlayerMP(this.mcServer, this.mcServer.getWorld(0), profile, playerinteractionmanager);
+        try {
+			return new HookedEntityPlayerMP(this.mcServer, this.mcServer.getWorld(0), profile, playerinteractionmanager);
+		} catch (IllegalAccessException e) {
+			Util.logger.logException("CRITICAL ERROR creating HookedEntityPlayerMP!", e);
+			return null;
+		}
     }
 
     private void setPlayerGameTypeBasedOnOther(EntityPlayerMP target, EntityPlayerMP source, World worldIn)
@@ -141,7 +149,15 @@ public class HookedIntegratedPlayerList extends IntegratedPlayerList {
             playerinteractionmanager = new PlayerInteractionManager(this.mcServer.getWorld(playerIn.dimension));
         }
 
-        EntityPlayerMP entityplayermp = new HookedEntityPlayerMP(this.mcServer, this.mcServer.getWorld(playerIn.dimension), playerIn.getGameProfile(), playerinteractionmanager);
+        EntityPlayerMP entityplayermp;
+
+        try {
+        	entityplayermp = new HookedEntityPlayerMP(this.mcServer, this.mcServer.getWorld(playerIn.dimension), playerIn.getGameProfile(), playerinteractionmanager);
+		} catch (IllegalAccessException e) {
+			Util.logger.logException("CRITICAL ERROR creating HookedEntityPlayerMP!", e);
+			return null;
+		}
+
         entityplayermp.connection = playerIn.connection;
         entityplayermp.copyFrom(playerIn, conqueredEnd);
         entityplayermp.dimension = dimension;
@@ -196,5 +212,13 @@ public class HookedIntegratedPlayerList extends IntegratedPlayerList {
         return entityplayermp;
     }
 
+	@Override
+	public void transferPlayerToDimension(EntityPlayerMP player, int dimensionIn, Teleporter teleporter) {
+		if (player instanceof EntityPlayerMPProxy)
+		{
+			player = ((EntityPlayerMPProxy)player).getRealPlayer();
+		}
+		super.transferPlayerToDimension(player, dimensionIn, teleporter);
+	}
 
 }

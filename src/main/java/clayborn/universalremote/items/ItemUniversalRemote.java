@@ -84,7 +84,12 @@ public class ItemUniversalRemote extends ItemEnergyBase {
             int[] blockPosition = {pos.getX(), pos.getY(), pos.getZ()};
             m_tag.setIntArray("remote.blockposition", blockPosition);
 
-            m_tag.setString("remote.block.name", world.getBlockState(pos).getBlock().getClass().getName());
+            IBlockState state = world.getBlockState(pos);
+            Block block = state.getBlock();
+            m_tag.setString("remote.block.class", block.getClass().getName());
+            m_tag.setString("remote.block.name", block.getPickBlock(state, null, world, pos, player).getDisplayName());
+
+            m_tag.setString("remote.mod.name", Util.getModNameFromID((state.getBlock().getRegistryName().getResourceDomain())));
 
             m_tag.setString("remote.hand", hand.toString());
             m_tag.setString("remote.facing", facing.toString());
@@ -107,7 +112,10 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 			m_tag.removeTag("remote.dimension.id");
 			m_tag.removeTag("remote.dimension.name");
 
+			m_tag.removeTag("remote.block.class");
 			m_tag.removeTag("remote.block.name");
+
+			m_tag.removeTag("remote.mod.name");
 
 			m_tag.removeTag("remote.blockposition");
 
@@ -130,7 +138,10 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 			if (!m_tag.hasKey("remote.dimension.id", m_intTagType.getId())) return false;
 			if (!m_tag.hasKey("remote.dimension.name", m_stringTagType.getId())) return false;
 
+			if (!m_tag.hasKey("remote.block.class", m_stringTagType.getId())) return false;
 			if (!m_tag.hasKey("remote.block.name", m_stringTagType.getId())) return false;
+
+			if (!m_tag.hasKey("remote.mod.name", m_stringTagType.getId())) return false;
 
 			if (!m_tag.hasKey("remote.blockposition", m_intArrayTagType.getId())) return false;
 			if (m_tag.getIntArray("remote.blockposition").length != 3) return false;
@@ -168,9 +179,19 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 			return m_tag.getString("remote.dimension.name");
 		}
 
+		public String getBlockClass()
+		{
+			return m_tag.getString("remote.block.class");
+		}
+
 		public String getBlockName()
 		{
 			return m_tag.getString("remote.block.name");
+		}
+
+		public String getModName()
+		{
+			return m_tag.getString("remote.mod.name");
 		}
 
 		public BlockPos getBlockPosition()
@@ -230,14 +251,11 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 		}
 	}
 
-	// these guys work only without the wrapper proxies!
-	//protected static final String[] m_containerProxyExceptionsList = { "com.raoulvdberge.refinedstorage", "appeng", "com.rwtema" };
-
 	// can't handle the proxy player...
-	private static final String[] m_playerProxyDuringActivationExceptionsList = { "ic2", "li" };
+	private static final String[] m_playerProxyDuringActivationExceptionsList = { "ic2" };
 
 	// can't handle the proxy world...
-	private static final String[] m_worldProxyDuringActivationExceptionsList = { "ic2", "li" };
+	private static final String[] m_worldProxyDuringActivationExceptionsList = { "ic2" };
 
 	protected boolean m_publishSubTypes;
 
@@ -392,23 +410,24 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 
 		// this is a client side only method so we are safe doing client things!
 
-    	String tip = null;
-
     	ItemUniversalRemoteNBTParser myNBT = new ItemUniversalRemoteNBTParser(stack);
 
     	if(myNBT.validateNBT())
     	{
-
-    		// need to store the string!
+    		// get the stored data...
     		String dimName = myNBT.getDimensionName();
+    		String blockName = myNBT.getBlockName();
+    		String modName = myNBT.getModName();
+
     		BlockPos blockPosition = myNBT.getBlockPosition();
 
-    		tip = TextFormatter.style(TextFormatting.GRAY, dimName + " (" + blockPosition.getX() + ", " + blockPosition.getY() + ", " + blockPosition.getZ() + ")").getFormattedText();
+    		tooltip.add(TextFormatter.style(TextFormatting.AQUA, blockName).getFormattedText());
+    		tooltip.add(TextFormatter.style(TextFormatting.DARK_AQUA, modName).getFormattedText());
+    		tooltip.add(TextFormatter.style(TextFormatting.GRAY, dimName + " (" + blockPosition.getX() + ", " + blockPosition.getY() + ", " + blockPosition.getZ() + ")").getFormattedText());
     	} else {
-    		tip = TextFormatter.translateAndStyle(TextFormatting.DARK_RED, true, "universalremote.strings.unbound").getFormattedText();
+    		tooltip.add(TextFormatter.translateAndStyle(TextFormatting.DARK_RED, true, "universalremote.strings.unbound").getFormattedText());
     	}
 
-    	tooltip.add(tip);
 
 		super.addInformation(stack, playerIn, tooltip, advanced);
 
@@ -482,7 +501,8 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 				myNBT.getPlayerY(),
 				myNBT.getPlayerZ(),
 				myNBT.getPlayerPitch(),
-				myNBT.getPlayerYaw());
+				myNBT.getPlayerYaw(),
+				world.provider.getDimension());
 
 
     	} else {
@@ -505,16 +525,14 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 			activatePlayer = player;
 		}
 
-		Container oldContainer = player.openContainer;
-
 		state.getBlock().
  			onBlockActivated(world, myNBT.getBlockPosition(), state, activatePlayer,
 					myNBT.getHand(), myNBT.getFacing(), myNBT.getHitX(), myNBT.getHitY(), myNBT.getHitZ());
 
 		// make sure any property sets are copied over to the real player
-		if (activatePlayer != player && activatePlayer.openContainer != oldContainer  )
+		if (activatePlayer instanceof EntityPlayerMPProxy)
 		{
-	    	player.openContainer = activatePlayer.openContainer;
+			((EntityPlayerMPProxy)fakePlayer).syncToRealPlayer();
 		}
 
 		return activatePlayer;
@@ -571,7 +589,7 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 
 						String test = state.getBlock().getClass().getName();
 
-						if (test.equals(myNBT.getBlockName())) {
+						if (test.equals(myNBT.getBlockClass())) {
 
 				    		// Make sure we have enough energy and if so extract it
 				    		if (internalExtractEnergy(stack, energyCost)) {
@@ -636,11 +654,6 @@ public class ItemUniversalRemote extends ItemEnergyBase {
 										// uh ho...
 										Util.logger.error("Unable to set player's remote filter because player was not instance of RemoteEnabledEntityPlayerMP!");
 									}
-
-//									if (!Util.doesStringStartWithAnyInArray(m_containerProxyExceptionsList, player.openContainer.getClass().getName()))
-//									{
-//										player.openContainer = new ContainerProxy(player.openContainer, fakePlayer);
-//									}
 
 //									// don't need this for vanilla
 //									if (!test.startsWith("net.minecraft") && oldWorld != world)
